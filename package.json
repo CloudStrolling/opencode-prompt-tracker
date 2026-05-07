@@ -36,6 +36,7 @@
   "files": [
     "dist/release/",
     "README.md",
+    "README_CM.md",
     "LICENSE"
   ],
   "dependencies": {
