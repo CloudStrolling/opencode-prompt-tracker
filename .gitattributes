@@ -1,0 +1,8 @@
+# Force LF line endings for all files
+* text=auto eol=lf
+
+# Ensure these files always use LF
+*.ts text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
