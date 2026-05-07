@@ -19,19 +19,18 @@ const FILE_HEADER = `# Prompt Log - Session
 /**
  * Formats a single step entry into Markdown format
  * Written immediately when each assistant message completes
- *
- * @param step - MessageStep containing step details
- * @returns Formatted Markdown string for the step entry
  */
 function formatStepEntry(step: MessageStep): string {
+  const desc = step.taskDescription
+    ? `\n- **Task**: ${step.taskDescription}`
+    : '';
   return `### Step ${step.stepNumber} — ${step.time}
 - **Agent**: ${step.agent}
 - **Model**: ${step.model}
 - **Duration**: ${step.duration}s
-- **Input Tokens**: ${step.inputTokens}
-- **Output Tokens**: ${step.outputTokens}
-- **Cache Read**: ${step.cacheRead}
-- **Cache Write**: ${step.cacheWrite}
+- **Total Tokens**: ${step.totalTokens} (input: ${step.inputTokens}, output: ${step.outputTokens})
+- **Cached Tokens**: ${step.cachedTokens} (read: ${step.cacheRead}, write: ${step.cacheWrite})
+- **Uncached Tokens**: ${step.uncachedTokens}${desc}
 
 `;
 }
@@ -39,9 +38,6 @@ function formatStepEntry(step: MessageStep): string {
 /**
  * Formats a summary entry into Markdown format
  * Written when session.idle fires, after all step logs
- *
- * @param data - LogData containing session summary
- * @returns Formatted Markdown string for the summary entry
  */
 function formatSummaryEntry(data: LogData): string {
   return `---
@@ -51,10 +47,9 @@ function formatSummaryEntry(data: LogData): string {
 - **Agent Chain**: ${data.agentChain}
 - **Total Duration**: ${data.duration}s
 - **Steps**: ${data.steps}
-- **Total Input Tokens**: ${data.inputTokens}
-- **Total Output Tokens**: ${data.outputTokens}
-- **Total Cache Read**: ${data.cacheRead}
-- **Total Cache Write**: ${data.cacheWrite}
+- **Total Tokens**: ${data.totalTokens} (input: ${data.inputTokens}, output: ${data.outputTokens})
+- **Cached Tokens**: ${data.cachedTokens} (read: ${data.cacheRead}, write: ${data.cacheWrite})
+- **Uncached Tokens**: ${data.uncachedTokens}
 
 ---
 
@@ -105,13 +100,6 @@ function buildFilePath(directory: string, sessionID: string, dateStr: string): {
  * Appends a step log entry to the Markdown file
  * Called immediately when each assistant message completes
  * Creates the file with header + prompt if this is the first step
- *
- * @param directory - Project root directory
- * @param sessionID - Session identifier
- * @param sessionStartTime - Date string (YYYY-MM-DD) for file naming
- * @param step - MessageStep data for the completed assistant message
- * @param isFirstStep - Whether this is the first step (writes header + prompt)
- * @param prompt - User's original prompt text (used only on first step)
  */
 export async function appendStepToPromptLog(
   directory: string,
@@ -140,7 +128,6 @@ export async function appendStepToPromptLog(
         existingContent = await file.text();
       }
 
-      // First step: write header + prompt + step entry; subsequent steps: append only
       const content = (fileExists ? existingContent : FILE_HEADER) + promptSection + entry;
       await Bun.write(filePath, content);
     } else {
@@ -154,9 +141,7 @@ export async function appendStepToPromptLog(
       sessionID,
       step: step.stepNumber,
       agent: step.agent,
-      model: step.model,
-      inputTokens: step.inputTokens,
-      outputTokens: step.outputTokens,
+      totalTokens: step.totalTokens,
     });
   } catch (error) {
     await logError('Failed to write step log', { file: fileName, error: String(error) });
@@ -167,10 +152,6 @@ export async function appendStepToPromptLog(
 /**
  * Appends a summary log entry to the Markdown file
  * Called when session.idle fires, after all step logs have been written
- *
- * @param directory - Project root directory
- * @param data - LogData for the completed session summary
- * @param sessionState - SessionState containing metadata from conversation start
  */
 export async function appendToPromptLog(
   directory: string,
@@ -204,10 +185,9 @@ export async function appendToPromptLog(
     await logInfo('Logged summary', {
       file: fileName,
       sessionID: data.sessionID,
-      duration: data.duration,
       steps: data.steps,
-      inputTokens: data.inputTokens,
-      outputTokens: data.outputTokens,
+      totalTokens: data.totalTokens,
+      duration: data.duration,
     });
   } catch (error) {
     await logError('Failed to write summary log', { file: fileName, error: String(error) });

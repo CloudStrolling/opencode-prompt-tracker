@@ -6,7 +6,8 @@
  *
  * Hooks used:
  * - chat.message: Captures user messages when sent, records initial state
- * - event: Monitors message.updated for step logging and session.idle for summary
+ * - event: Monitors message.part.updated for text collection,
+ *   message.updated for step logging, and session.idle for summary
  *
  * Key design: In agent workflows (e.g., Sisyphus - Ultraworker), multiple
  * assistant messages may complete within a single session. Each completed
@@ -22,19 +23,17 @@ import { appendToPromptLog, appendStepToPromptLog } from './utils/file-writer';
 import { extractAgentChain } from './utils/agent-extractor';
 import { initLogger, logInfo, logError } from './utils/logger';
 
+/** Maximum length for task description extracted from assistant output */
+const MAX_TASK_DESC_LENGTH = 120;
+
 /**
  * Merges two agent chain arrays, removing duplicates
  * Initial agents from input are preserved, extracted agents are added if not present
- *
- * @param initialAgents - Agent chain from input context
- * @param extractedAgents - Agent chain extracted from message parts
- * @returns Merged array with unique agent names in order
  */
 function mergeAgentChains(initialAgents: string[], extractedAgents: string[]): string[] {
   const merged: string[] = [];
   const seen = new Set<string>();
 
-  // Add initial agents first
   for (const agent of initialAgents) {
     if (!seen.has(agent)) {
       merged.push(agent);
@@ -42,7 +41,6 @@ function mergeAgentChains(initialAgents: string[], extractedAgents: string[]): s
     }
   }
 
-  // Append extracted agents that aren't already included
   for (const agent of extractedAgents) {
     if (!seen.has(agent)) {
       merged.push(agent);
@@ -55,9 +53,6 @@ function mergeAgentChains(initialAgents: string[], extractedAgents: string[]): s
 
 /**
  * Formats a Date object into YYYY-MM-DD string for file naming
- *
- * @param date - JavaScript Date object
- * @returns Formatted date string
  */
 function formatDateForFileName(date: Date): string {
   const year = date.getFullYear();
@@ -69,13 +64,6 @@ function formatDateForFileName(date: Date): string {
 /**
  * Extracts user prompt text from message parts array
  * Filters for text-type parts and joins multiple text blocks
- *
- * @param parts - Array of message parts from output.parts
- * @returns Joined text content or empty string if no text parts
- *
- * @remarks
- * - User input is stored in output.parts, not output.message
- * - Multiple text parts may exist for different content blocks
  */
 function extractPromptFromParts(parts: any[]): string {
   if (!parts || !Array.isArray(parts)) return '';
@@ -88,17 +76,12 @@ function extractPromptFromParts(parts: any[]): string {
 /**
  * Extracts model identifier from input context
  * Handles different model format options (providerID/modelID or direct string)
- *
- * @param input - Input context from chat.message hook
- * @returns Model identifier string or 'unknown' if not found
  */
 function extractModelFromInput(input: any): string {
   if (input.model) {
-    // Object format: { providerID: 'opencode', modelID: 'hy3-preview-free' }
     if (input.model.providerID && input.model.modelID) {
       return `${input.model.providerID}/${input.model.modelID}`;
     }
-    // Direct string format
     if (typeof input.model === 'string') {
       return input.model;
     }
@@ -110,8 +93,8 @@ function extractModelFromInput(input: any): string {
  * Extracts and normalizes token counts from an assistant message
  * Handles both primary tokens structure and older usage structure
  *
- * @param info - Assistant message info object
- * @returns Object with input, output, context, cacheRead, cacheWrite counts
+ * Note: input tokens INCLUDE cached portions (cacheRead + cacheWrite).
+ * uncached = input - cacheRead - cacheWrite
  */
 function extractTokens(info: any): {
   input: number;
@@ -142,21 +125,27 @@ function extractTokens(info: any): {
 
 /**
  * Extracts the agent name from an assistant message info object
- * Tries multiple sources in order of preference
- *
- * @param info - Assistant message info object
- * @returns Agent name string or 'unknown' if not found
  */
 function extractAgentFromInfo(info: any): string {
-  // Try info.agent first (explicit agent field)
   if (info.agent) {
     return typeof info.agent === 'string' ? info.agent : info.agent.name || 'unknown';
   }
-  // Try providerID as agent hint
   if (info.providerID) {
     return info.providerID;
   }
   return 'unknown';
+}
+
+/**
+ * Extracts a brief task description from accumulated message text
+ * Takes the first non-empty line, truncated to MAX_TASK_DESC_LENGTH
+ */
+function extractTaskDescription(text: string): string {
+  if (!text) return '';
+  const firstLine = text.split('\n').find((line) => line.trim().length > 0) || '';
+  const trimmed = firstLine.trim();
+  if (trimmed.length <= MAX_TASK_DESC_LENGTH) return trimmed;
+  return trimmed.substring(0, MAX_TASK_DESC_LENGTH) + '...';
 }
 
 // ===== Plugin Entry Point =====
@@ -165,12 +154,9 @@ function extractAgentFromInfo(info: any): string {
  * Main plugin factory function
  * Returns hooks object for OpenCode plugin system
  *
- * @param client - OpenCode client instance for logging
- * @param directory - Project directory path for log file storage
- * @returns Plugin hooks object with chat.message and event handlers
- *
  * @remarks
  * - Maintains sessionStates Map to track ongoing conversations
+ * - Collects text from message.part.updated for task descriptions
  * - Each completed assistant message is logged as a "step" immediately
  * - Summary with accumulated totals is written when session.idle fires
  * - Cleans up session state after logging to prevent memory leaks
@@ -182,10 +168,8 @@ export const PromptLogPlugin = async ({
   client: any;
   directory: string;
 }) => {
-  // Map to store session state from message start until session goes idle
   const sessionStates = new Map<string, SessionState>();
 
-  // Initialize logger with client and directory
   initLogger(client, directory);
   await logInfo('Plugin initialized');
 
@@ -197,17 +181,14 @@ export const PromptLogPlugin = async ({
   const writeLogAndCleanup = async (sessionID: string) => {
     const state = sessionStates.get(sessionID);
     if (!state || !state.hasCompletedMessage) {
-      // No completed messages to log, just clean up
       sessionStates.delete(sessionID);
       return;
     }
 
-    // Calculate conversation duration from start to now (session idle time)
     const endTime = Date.now();
     const durationMs = endTime - state.startTime;
     const durationSec = (durationMs / 1000).toFixed(2);
 
-    // Format start time as HH:MM:SS
     const time = new Date(state.startTime).toLocaleTimeString('zh-CN', {
       hour: '2-digit',
       minute: '2-digit',
@@ -215,7 +196,9 @@ export const PromptLogPlugin = async ({
       hour12: false,
     });
 
-    // Construct summary log data with accumulated tokens
+    const totalCached = state.totalCacheRead + state.totalCacheWrite;
+    const totalUncached = Math.max(0, state.totalInputTokens - totalCached);
+
     const logData: LogData = {
       sessionID,
       time,
@@ -224,24 +207,23 @@ export const PromptLogPlugin = async ({
       prompt: state.prompt,
       duration: durationSec,
       steps: state.stepCount,
+      totalTokens: state.totalInputTokens + state.totalOutputTokens,
       inputTokens: state.totalInputTokens,
       outputTokens: state.totalOutputTokens,
-      contextTokens: state.totalContextTokens,
+      cachedTokens: totalCached,
+      uncachedTokens: totalUncached,
       cacheRead: state.totalCacheRead,
       cacheWrite: state.totalCacheWrite,
     };
 
-    // Write summary to Markdown file
     await appendToPromptLog(directory, logData, state);
 
-    // Clean up session state after logging
     sessionStates.delete(sessionID);
     await logInfo('Session summary logged', {
       sessionID,
       steps: state.stepCount,
       duration: durationSec,
-      inputTokens: state.totalInputTokens,
-      outputTokens: state.totalOutputTokens,
+      totalTokens: logData.totalTokens,
     });
   };
 
@@ -255,17 +237,14 @@ export const PromptLogPlugin = async ({
         const sessionID = input.sessionID;
         if (!sessionID) return;
 
-        // Extract prompt text from output.parts (not output.message)
         const prompt = extractPromptFromParts(output.parts);
         const model = extractModelFromInput(input);
 
-        // Build initial agent chain from input context
         let agentChain: string[] = [];
         if (input.agent) {
           agentChain = [input.agent];
         }
 
-        // Also check message parts for any agent calls
         if (output.parts && Array.isArray(output.parts)) {
           const agentsFromParts = extractAgentChain(output.parts);
           if (agentsFromParts.length > 0) {
@@ -276,7 +255,6 @@ export const PromptLogPlugin = async ({
         const now = new Date();
         const sessionStartTime = formatDateForFileName(now);
 
-        // Create session state object with initialized accumulation fields
         const state: SessionState = {
           userMsgID: output.message?.id || sessionID,
           prompt,
@@ -294,6 +272,7 @@ export const PromptLogPlugin = async ({
           hasCompletedMessage: false,
           stepCount: 0,
           headerWritten: false,
+          messageTexts: new Map<string, string>(),
         };
 
         sessionStates.set(sessionID, state);
@@ -304,7 +283,6 @@ export const PromptLogPlugin = async ({
           agents: agentChain,
         });
 
-        // Memory management: clean up old states (keep most recent 100)
         if (sessionStates.size > 100) {
           const firstKey = sessionStates.keys().next().value;
           if (firstKey) {
@@ -317,19 +295,17 @@ export const PromptLogPlugin = async ({
     },
 
     /**
-     * event hook - monitors assistant message completion and session state
+     * event hook - monitors message parts, assistant completion, and session state
      *
      * Flow:
-     * 1. message.updated (completed assistant) → write step log immediately + accumulate tokens
-     * 2. session.idle → write summary log with all accumulated data
-     * 3. session.status (idle) → fallback trigger for writing summary
-     *
-     * Each step is logged as soon as it completes, providing real-time visibility
-     * into agent workflows. The summary captures the full session totals.
+     * 1. message.part.updated → collect text content per message for task descriptions
+     * 2. message.updated (completed assistant) → write step log + accumulate tokens
+     * 3. session.idle → write summary log with all accumulated data
+     * 4. session.status (idle) → fallback trigger for writing summary
      */
     event: async ({ event }: { event: any }) => {
       try {
-        // Handle session.idle - the entire session is done, write the summary log
+        // Handle session.idle
         if (event.type === 'session.idle') {
           const sessionID = event.properties?.sessionID;
           if (!sessionID) return;
@@ -337,7 +313,7 @@ export const PromptLogPlugin = async ({
           return;
         }
 
-        // Handle session.status with idle status (alternative signal)
+        // Handle session.status with idle status
         if (event.type === 'session.status') {
           const status = event.properties?.status;
           if (status?.type === 'idle') {
@@ -346,6 +322,24 @@ export const PromptLogPlugin = async ({
             await writeLogAndCleanup(sessionID);
             return;
           }
+          return;
+        }
+
+        // Collect text content from message.part.updated for task descriptions
+        if (event.type === 'message.part.updated') {
+          const part = event.properties?.part;
+          if (!part || part.type !== 'text' || !part.text) return;
+
+          const sessionID = part.sessionID;
+          const messageID = part.messageID;
+          if (!sessionID || !messageID) return;
+
+          const state = sessionStates.get(sessionID);
+          if (!state) return;
+
+          // Append text to the message's accumulated text buffer
+          const existing = state.messageTexts.get(messageID) || '';
+          state.messageTexts.set(messageID, existing + part.text);
           return;
         }
 
@@ -361,17 +355,11 @@ export const PromptLogPlugin = async ({
           return;
         }
 
-        // Retrieve stored session state
         const state = sessionStates.get(sessionID);
-        if (!state) {
-          return;
-        }
+        if (!state) return;
 
-        // Skip if this message has already been processed (avoid double-counting)
         const messageID = info.id;
-        if (messageID && state.completedMessageIDs.has(messageID)) {
-          return;
-        }
+        if (messageID && state.completedMessageIDs.has(messageID)) return;
 
         // Check if this assistant message is complete with token data
         const isComplete = info.time?.completed;
@@ -387,13 +375,12 @@ export const PromptLogPlugin = async ({
           (info.usage.prompt_tokens > 0 || info.usage.input_tokens > 0) &&
           (info.usage.completion_tokens > 0 || info.usage.output_tokens > 0);
 
-        // If not complete or tokens not yet available, skip and wait for next event
-        if (!isComplete || (!hasFullTokens && !hasUsageTokens)) {
-          return;
-        }
+        if (!isComplete || (!hasFullTokens && !hasUsageTokens)) return;
 
-        // Extract token counts from this completed message
+        // Extract token counts
         const tokens = extractTokens(info);
+        const cachedTokens = tokens.cacheRead + tokens.cacheWrite;
+        const uncachedTokens = Math.max(0, tokens.input - cachedTokens);
 
         // Increment step count
         state.stepCount += 1;
@@ -409,7 +396,6 @@ export const PromptLogPlugin = async ({
         const stepEndTime = Date.now();
         const stepDurationSec = ((stepEndTime - state.startTime) / 1000).toFixed(2);
 
-        // Format step completion time as HH:MM:SS
         const stepTime = new Date(stepEndTime).toLocaleTimeString('zh-CN', {
           hour: '2-digit',
           minute: '2-digit',
@@ -417,8 +403,15 @@ export const PromptLogPlugin = async ({
           hour12: false,
         });
 
-        // Extract agent name for this step
         const agentName = extractAgentFromInfo(info);
+
+        // Get task description from accumulated text
+        const messageText = state.messageTexts.get(messageID || '') || '';
+        const taskDescription = extractTaskDescription(messageText);
+        // Clean up text buffer for this message
+        if (messageID) {
+          state.messageTexts.delete(messageID);
+        }
 
         // Write step log immediately
         const step: MessageStep = {
@@ -428,9 +421,12 @@ export const PromptLogPlugin = async ({
           model: stepModel,
           time: stepTime,
           duration: stepDurationSec,
+          taskDescription,
+          totalTokens: tokens.input + tokens.output,
           inputTokens: tokens.input,
           outputTokens: tokens.output,
-          contextTokens: tokens.context,
+          cachedTokens,
+          uncachedTokens,
           cacheRead: tokens.cacheRead,
           cacheWrite: tokens.cacheWrite,
         };
@@ -453,12 +449,10 @@ export const PromptLogPlugin = async ({
         state.totalCacheRead += tokens.cacheRead;
         state.totalCacheWrite += tokens.cacheWrite;
 
-        // Update model from this message (use latest in agent chain)
         if (info.providerID && info.modelID) {
           state.lastModel = `${info.providerID}/${info.modelID}`;
         }
 
-        // Mark this message as processed
         if (messageID) {
           state.completedMessageIDs.add(messageID);
         }
@@ -471,10 +465,9 @@ export const PromptLogPlugin = async ({
           messageID,
           agent: agentName,
           model: stepModel,
-          inputTokens: tokens.input,
-          outputTokens: tokens.output,
-          totalInput: state.totalInputTokens,
-          totalOutput: state.totalOutputTokens,
+          totalTokens: step.totalTokens,
+          cachedTokens,
+          uncachedTokens,
         });
       } catch (error) {
         await logError('Error in event hook', { error: String(error) });
