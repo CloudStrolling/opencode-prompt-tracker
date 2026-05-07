@@ -1,20 +1,20 @@
 # OpenCode Prompt Log Plugin
 
-OpenCode 插件，用于记录每次对话的 Prompt、模型、Agent 调用链、耗时和 Token 使用情况到每日 Markdown 文件中。
+An OpenCode plugin that records prompts, models, agent call chains, duration, and token usage for each conversation into daily Markdown files.
 
-## 功能特性
+## Features
 
-- 📝 **自动记录**: 每次对话结束后自动记录到 Markdown 文件
-- 🔗 **Agent 链追踪**: 记录完整的 Agent 调用链（如 `oracle → build → explore`），包括首次调用的 Agent 和通过 Agent 调用的其他 Agent
-- 💰 **Token 统计**: 记录 Input/Output Tokens，支持上下文 Token 分别计数
-- ⏱️ **耗时统计**: 记录每次对话的耗时
-- 📅 **按日归档**: 自动按日期生成日志文件
+- 📝 **Automatic Logging**: Automatically records each conversation to Markdown files after the conversation ends
+- 🔗 **Agent Chain Tracking**: Records the complete agent call chain (e.g., `oracle → build → explore`), including both the first-called agent and sub-agents invoked through other agents
+- 💰 **Token Statistics**: Records Input/Output Tokens, with separate context token counting
+- ⏱️ **Duration Tracking**: Records the duration of each conversation
+- 📅 **Daily Archiving**: Automatically generates log files by date
 
-## 安装
+## Installation
 
-### 方式一：通过 npm 安装（推荐）
+### Method 1: Install via npm (Recommended)
 
-1. 在 `opencode.json` 中添加插件配置：
+1. Add the plugin configuration in `opencode.json`:
 
 ```json
 {
@@ -23,56 +23,56 @@ OpenCode 插件，用于记录每次对话的 Prompt、模型、Agent 调用链�
 }
 ```
 
-2. 重启 OpenCode，插件会自动下载并安装。
+2. Restart OpenCode, and the plugin will be automatically downloaded and installed.
 
-> **注意**: 插件会安装到 `~/.cache/opencode/node_modules/` 目录，这是 OpenCode 管理 npm 插件的标准位置。
+> **Note**: The plugin will be installed to `~/.cache/opencode/node_modules/` directory, which is the standard location for OpenCode to manage npm plugins.
 
-### 方式二：本地安装（开发调试）
+### Method 2: Local Installation (Development/Debugging)
 
-适合需要修改插件或参与开发的用户。
+Suitable for users who need to modify the plugin or participate in development.
 
-#### 前置要求
+#### Prerequisites
 
-- OpenCode 编辑器
-- Node.js 18+ 或 Bun 运行时
+- OpenCode editor
+- Node.js 18+ or Bun runtime
 
-#### 安装步骤
+#### Installation Steps
 
-1. 克隆或下载此插件到本地：
+1. Clone or download this plugin to local:
 
 ```bash
 git clone <repository-url> opencode-prompt-log
 cd opencode-prompt-log
 ```
 
-2. 安装依赖：
+2. Install dependencies:
 
 ```bash
 npm install
-# 或者
+# or
 bun install
 ```
 
-3. 构建插件：
+3. Build the plugin:
 
 ```bash
 npm run build
-# 或者
+# or
 bun run build
 ```
 
-4. 将插件复制到 OpenCode 插件目录：
+4. Copy the plugin to the OpenCode plugins directory:
 
 ```bash
-# 插件目录位置取决于你的 OpenCode 配置
-# 通常是 ~/.opencode/plugins/ 或 <项目目录>/.opencode/plugins/
+# The plugin directory location depends on your OpenCode configuration
+# Usually it's ~/.opencode/plugins/ or <project-directory>/.opencode/plugins/
 mkdir -p ~/.opencode/plugins/opencode-prompt-log
 cp -r dist/* ~/.opencode/plugins/opencode-prompt-log/
 ```
 
-5. 在 OpenCode 配置中注册插件：
+5. Register the plugin in OpenCode configuration:
 
-编辑项目根目录或用户目录下的 `opencode.json` 文件，在 `plugin` 数组中添加 `"opencode-prompt-log"`：
+Edit the `opencode.json` file in your project root or user home directory, add `"opencode-prompt-log"` to the `plugin` array:
 
 ```json
 {
@@ -83,7 +83,7 @@ cp -r dist/* ~/.opencode/plugins/opencode-prompt-log/
 }
 ```
 
-如果 `plugin` 数组已存在其他插件，只需追加即可：
+If the `plugin` array already has other plugins, simply append:
 
 ```json
 {
@@ -95,189 +95,190 @@ cp -r dist/* ~/.opencode/plugins/opencode-prompt-log/
 }
 ```
 
-## 使用方法
+## Usage
 
-安装并重启 OpenCode 后，插件会自动激活。每次对话结束时，插件会：
+After installation and restarting OpenCode, the plugin will automatically activate. After each conversation ends, the plugin will:
 
-1. 在 `chat.message` 钩子中捕获用户消息，记录 Prompt 和模型信息
-2. 在 `message.updated` 钩子中捕获助手回复，记录耗时和 Token 使用
-3. 将信息写入 `<项目目录>/.opencode/prompts/opencode-prompt-YYYY-MM-DD.md`
+1. Capture user messages in the `chat.message` hook, recording prompt and model information
+2. Capture assistant responses in the `message.updated` hook, recording duration and token usage
+3. Write the information to `<project-directory>/.opencode/prompts/opencode-prompt-YYYY-MM-DD.md`
 
-### 日志文件格式
+### Log File Format
 
-日志文件采用 Markdown 表格格式：
+Log files use Markdown table format:
 
 ```markdown
-| 时间 | Agent 调用链 | 模型 | Prompt | 耗时(s) | Input Tokens | Output Tokens | Context Tokens | Cache Read | Cache Write |
-|------|-------------|------|--------|----------|-------------|---------------|---------------|------------|-------------|
-| 10:30:15 | oracle → build | opencode/hy3-preview-free | 设计一个opencode插件... | 12.34 | 150 | 800 | 100 | 0 | 0 |
+| Time | Agent Chain | Model | Prompt | Duration(s) | Input Tokens | Output Tokens | Context Tokens | Cache Read | Cache Write |
+|------|-------------|-------|--------|-------------|--------------|---------------|-----------------|------------|-------------|
+| 10:30:15 | oracle → build | opencode/hy3-preview-free | Design an OpenCode plugin... | 12.34 | 150 | 800 | 100 | 0 | 0 |
 ```
 
-### 字段说明
+### Field Description
 
-| 字段 | 说明 |
-|------|------|
-| 时间 | 对话开始时间（HH:MM:SS） |
-| Agent 调用链 | 完整的 Agent 调用链，如 `main → code-review → test` |
-| 模型 | 使用的 AI 模型，如 `opencode/hy3-preview-free` |
-| Prompt | 用户输入的提示词（换行符替换为 `<br>`） |
-| 耗时(s) | 对话处理耗时，单位秒 |
-| Input Tokens | 总输入 Token 数 |
-| Output Tokens | 输出 Token 数 |
-| Context Tokens | 上下文 Token 数（从总输入中分离） |
-| Cache Read | 缓存读取的 Token 数 |
-| Cache Write | 缓存写入的 Token 数 |
+| Field | Description |
+|-------|-------------|
+| Time | Conversation start time (HH:MM:SS) |
+| Agent Chain | Complete agent call chain, e.g., `main → code-review → test` |
+| Model | AI model used, e.g., `opencode/hy3-preview-free` |
+| Prompt | User input prompt (newlines replaced with `<br>`) |
+| Duration(s) | Conversation processing duration in seconds |
+| Input Tokens | Total input Token count |
+| Output Tokens | Output Token count |
+| Context Tokens | Context Token count (separated from total input) |
+| Cache Read | Tokens read from cache |
+| Cache Write | Tokens written to cache |
 
-## 开发
+## Development
 
-### 项目结构
+### Project Structure
 
 ```
 opencode-prompt-log/
 ├── src/
-│   ├── index.ts              # 插件入口点
-│   ├── types.ts              # 类型定义
+│   ├── index.ts              # Plugin entry point
+│   ├── types.ts              # Type definitions
 │   ├── hooks/
-│   │   ├── chat-message.ts  # chat.message 钩子处理
-│   │   └── message-updated.ts  # message.updated 钩子处理
+│   │   ├── chat-message.ts  # chat.message hook handler
+│   │   └── message-updated.ts  # message.updated hook handler
 │   └── utils/
-│       ├── file-writer.ts   # 文件写入工具
-│       └── agent-extractor.ts  # Agent 链提取工具
-├── tests/                   # 测试文件
-├── dist/                    # 构建输出
+│       ├── file-writer.ts   # File writer utility
+│       └── agent-extractor.ts  # Agent chain extractor utility
+├── tests/                   # Test files
+├── dist/                    # Build output
 ├── package.json
 ├── tsconfig.json
-└── README.md
+├── README.md               # English README
+└── README_CM.md            # Chinese README
 ```
 
-### 本地编译
+### Local Build
 
 ```bash
-# 安装依赖
+# Install dependencies
 npm install
 
-# 编译 TypeScript
+# Compile TypeScript
 npm run build
 
-# 监视模式开发
+# Watch mode for development
 npm run dev
 ```
 
-### 运行测试
+### Run Tests
 
 ```bash
 npm test
-# 或者
+# or
 bun test
 ```
 
-### 本地安装测试
+### Local Installation Testing
 
 ```bash
-# 1. 构建插件
+# 1. Build the plugin
 npm run build
 
-# 2. 复制到测试项目的插件目录
+# 2. Copy to test project's plugin directory
 mkdir -p <test-project>/.opencode/plugins/
 cp dist/index.js <test-project>/.opencode/plugins/prompt-log.js
 
-# 3. 在测试项目中启动 OpenCode
+# 3. Start OpenCode in the test project
 cd <test-project>
 opencode
 ```
 
-## npm 发布流程
+## npm Publishing Process
 
-### 准备工作
+### Preparation
 
-1. 确保 `package.json` 中的信息正确：
-   - `name`: 包名（必须是 `opencode-prompt-log`）
-   - `version`: 版本号
-   - `main`: 入口文件（`dist/index.js`）
-   - `files`: 包含要发布的文件（`dist/`、`README.md`、`LICENSE`）
+1. Ensure `package.json` information is correct:
+   - `name`: Package name (must be `opencode-prompt-log`)
+   - `version`: Version number
+   - `main`: Entry file (`dist/release/opencode-prompt-log.js`)
+   - `files`: Files to include for publishing (`dist/`, `README.md`, `README_CM.md`, `LICENSE`)
 
-2. 确保 `README.md` 和 `LICENSE` 文件存在
+2. Ensure `README.md`, `README_CM.md`, and `LICENSE` files exist
 
-### 构建并发布
+### Build and Publish
 
 ```bash
-# 1. 登录 npm（首次发布需要）
+# 1. Login to npm (required for first publish)
 npm login
 
-# 2. 安装依赖并构建
+# 2. Install dependencies and build
 npm install
 npm run build
 
-# 3. 发布到 npm
+# 3. Publish to npm
 npm publish
 
-# 如果是 scoped package（如 @username/opencode-prompt-log），需要添加 --access public
+# If it's a scoped package (e.g., @username/opencode-prompt-log), add --access public
 npm publish --access public
 ```
 
-### 版本更新
+### Version Update
 
-当需要发布新版本时：
+When releasing a new version:
 
 ```bash
-# 1. 更新版本号（patch/minor/major）
+# 1. Update version number (patch/minor/major)
 npm version patch  # 1.0.0 -> 1.0.1
 npm version minor  # 1.0.0 -> 1.1.0
 npm version major  # 1.0.0 -> 2.0.0
 
-# 2. 构建
+# 2. Build
 npm run build
 
-# 3. 发布
+# 3. Publish
 npm publish
 ```
 
-### 验证发布
+### Verify Publishing
 
-发布后可以在 [npm 官网](https://www.npmjs.com/package/opencode-prompt-log) 查看包信息，或通过以下命令验证：
+After publishing, you can view the package information on [npm website](https://www.npmjs.com/package/opencode-prompt-log), or verify with:
 
 ```bash
 npm view opencode-prompt-log
 ```
 
-## 技术细节
+## Technical Details
 
-- **钩子**: 使用 `chat.message` 和 `message.updated` 钩子捕获对话
-- **数据存储**: 使用 Markdown 表格格式，便于阅读和搜索
-- **兼容性**: 同时支持新版 Plugin API 和旧版 activate API
-- **运行时**: 同时支持 Bun 和 Node.js 运行时
-- **类型安全**: 使用 TypeScript 编写，提供完整的类型定义
+- **Hooks**: Uses `chat.message` and `message.updated` hooks to capture conversations
+- **Data Storage**: Uses Markdown table format for easy reading and searching
+- **Compatibility**: Supports both new Plugin API and legacy activate API
+- **Runtime**: Supports both Bun and Node.js runtimes
+- **Type Safety**: Written in TypeScript with complete type definitions
 
-## 故障排除
+## Troubleshooting
 
-### 插件未加载
+### Plugin Not Loaded
 
-1. 检查插件是否正确安装到 OpenCode 插件目录
-2. 查看 OpenCode 控制台是否有 `[PromptLog] Plugin activated` 日志
-3. 确认 `dist/index.js` 文件已生成
+1. Check if the plugin is correctly installed in the OpenCode plugins directory
+2. Check if the OpenCode console shows `[PromptLog] Plugin activated` log
+3. Confirm that `dist/release/opencode-prompt-log.js` file has been generated
 
-### 日志文件未生成
+### Log File Not Generated
 
-1. 检查项目目录下是否存在 `.opencode/prompts/` 目录及写入权限
-2. 查看 OpenCode 控制台是否有错误信息
-3. 确认对话中至少有一个完整的用户-助手交互回合
+1. Check if `.opencode/prompts/` directory exists in the project directory and has write permissions
+2. Check if there are error messages in the OpenCode console
+3. Confirm there is at least one complete user-assistant interaction in the conversation
 
-### TypeScript 编译错误
+### TypeScript Compilation Errors
 
-如果遇到构建错误，尝试：
+If you encounter build errors, try:
 
 ```bash
-# 清理并重新安装
+# Clean and reinstall
 rm -rf node_modules package-lock.json
 npm install
 npm run build
 ```
 
-## 许可证
+## License
 
-本项目采用 Apache License 2.0 许可证。详见 [LICENSE](./LICENSE) 文件。
+This project is licensed under the Apache License 2.0. See [LICENSE](./LICENSE) file for details.
 
-Copyright 2026 Your Name
+Copyright 2026 OpenCode Prompt Log Contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -291,6 +292,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-## 贡献
+## Contributing
 
-欢迎提交 Issue 和 Pull Request！
+Contributions, issues and pull requests are welcome!
