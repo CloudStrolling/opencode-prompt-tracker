@@ -1,0 +1,50 @@
+{
+  "name": "opencode-prompt-log",
+  "version": "1.0.0",
+  "description": "OpenCode plugin to log prompts, models, agents, duration, and token usage to daily Markdown files",
+  "main": "dist/release/opencode-prompt-log.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && npm run bundle",
+    "bundle": "esbuild dist/index.js --bundle --platform=node --format=esm --outfile=dist/release/opencode-prompt-log.js",
+    "test": "bun test",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "logging",
+    "tokens",
+    "prompts",
+    "agent"
+  ],
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/opencode-prompt-log.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/opencode-prompt-log/issues"
+  },
+  "homepage": "https://github.com/your-username/opencode-prompt-log#readme",
+  "files": [
+    "dist/release/",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.13",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.0.0"
+  }
+}
