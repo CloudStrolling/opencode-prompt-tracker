@@ -1,9 +1,9 @@
-# OpenCode Prompt Recorder Plugin - Specification
+# OpenCode Prompt Tracker Plugin - Specification
 
 ## 1. Project Overview
 
 ### Project Name
-OpenCode Prompt Recorder Plugin
+OpenCode Prompt Tracker Plugin
 
 ### Project Type
 OpenCode Plugin (TypeScript/JavaScript)
@@ -146,7 +146,7 @@ interface LogData {
 ### 4.1 Module Structure
 
 ```
-opencode-prompt-recorder/
+opencode-prompt-tracker/
 ├── src/
 │   ├── index.ts              # Main plugin entry, hook handlers
 │   ├── types.ts              # TypeScript interfaces

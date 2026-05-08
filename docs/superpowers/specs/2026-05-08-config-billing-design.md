@@ -8,7 +8,7 @@
 
 Add a configuration module and billing calculation feature to the OpenCode Prompt Recorder plugin.
 
-- **Configuration file**: `opencode-prompt-recorder.config.json` in project root
+- **Configuration file**: `opencode-prompt-tracker.config.json` in project root
 - **Configuration items**: output path, file prefix, billing settings
 - **Billing feature**: calculate and display cost in summary when billing is enabled
 
@@ -16,7 +16,7 @@ Add a configuration module and billing calculation feature to the OpenCode Promp
 
 ### 2.1 File Location
 
-**Path**: `<project>/opencode-prompt-recorder.config.json`
+**Path**: `<project>/opencode-prompt-tracker.config.json`
 
 Rationale: Separate from OpenCode's `opencode.json`, clearly scoped to this plugin only.
 

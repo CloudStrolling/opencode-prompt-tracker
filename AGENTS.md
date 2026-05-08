@@ -5,7 +5,7 @@ This is an OpenCode plugin. Not a standalone app. Plugin development has differe
 ## Developer Commands
 
 ```bash
-npm run build    # Build TypeScript + esbuild bundle → dist/release/opencode-prompt-recorder.js
+npm run build    # Build TypeScript + esbuild bundle → dist/release/opencode-prompt-tracker.js
 npm run dev      # Watch mode: tsc --watch
 npm test        # Run tests with Bun (bun test)
 ```
@@ -58,10 +58,10 @@ npm run build
 
 # 2. Copy to test project
 mkdir -p <test-project>/.opencode/plugins/
-cp dist/release/opencode-prompt-recorder.js <test-project>/.opencode/plugins/
+cp dist/release/opencode-prompt-tracker.js <test-project>/.opencode/plugins/
 
 # 3. Add to test project's opencode.json:
-{ "plugin": ["opencode-prompt-recorder"] }
+{ "plugin": ["opencode-prompt-tracker"] }
 ```
 
 ## Publishing

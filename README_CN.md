@@ -20,7 +20,7 @@
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-prompt-recorder"]
+  "plugin": ["opencode-prompt-tracker"]
 }
 ```
 
@@ -41,8 +41,8 @@
 
 ```bash
 # 克隆插件仓库
-git clone <仓库地址> opencode-prompt-recorder
-cd opencode-prompt-recorder
+git clone <仓库地址> opencode-prompt-tracker
+cd opencode-prompt-tracker
 
 # 安装依赖
 npm install
@@ -55,13 +55,13 @@ npm run build
 bun run build
 
 # 复制到 OpenCode 插件目录
-mkdir -p ~/.opencode/plugins/opencode-prompt-recorder
-cp -r dist/* ~/.opencode/plugins/opencode-prompt-recorder/
+mkdir -p ~/.opencode/plugins/opencode-prompt-tracker
+cp -r dist/* ~/.opencode/plugins/opencode-prompt-tracker/
 
 # 在 opencode.json 中注册
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-prompt-recorder"]
+  "plugin": ["opencode-prompt-tracker"]
 }
 ```
 
@@ -127,7 +127,7 @@ cp -r dist/* ~/.opencode/plugins/opencode-prompt-recorder/
 ### 项目结构
 
 ```
-opencode-prompt-recorder/
+opencode-prompt-tracker/
 ├── src/
 │   ├── index.ts              # 主插件入口 — 钩子处理函数
 │   ├── types.ts             # TypeScript 类型定义
@@ -147,7 +147,7 @@ opencode-prompt-recorder/
 ### 开发命令
 
 ```bash
-npm run build    # 构建 TypeScript + esbuild → dist/release/opencode-prompt-recorder.js
+npm run build    # 构建 TypeScript + esbuild → dist/release/opencode-prompt-tracker.js
 npm run dev     # 监听模式: tsc --watch
 npm test        # 使用 Bun 运行测试 (bun test)
 ```
@@ -160,10 +160,10 @@ npm run build
 
 # 2. 复制到测试项目
 mkdir -p <测试项目>/.opencode/plugins/
-cp dist/release/opencode-prompt-recorder.js <测试项目>/.opencode/plugins/
+cp dist/release/opencode-prompt-tracker.js <测试项目>/.opencode/plugins/
 
 # 3. 在 opencode.json 中添加
-{ "plugin": ["opencode-prompt-recorder"] }
+{ "plugin": ["opencode-prompt-tracker"] }
 ```
 
 ## 发布

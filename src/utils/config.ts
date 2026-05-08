@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: PromptRecorderConfig = {
 /**
  * Config file name in project root
  */
-export const CONFIG_FILE_NAME = 'opencode-prompt-recorder.config.json';
+export const CONFIG_FILE_NAME = 'opencode-prompt-tracker.config.json';
 
 /**
  * Loads configuration from project root

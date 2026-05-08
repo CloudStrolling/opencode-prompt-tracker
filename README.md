@@ -20,7 +20,7 @@ Add the plugin configuration in `opencode.json`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-prompt-recorder"]
+  "plugin": ["opencode-prompt-tracker"]
 }
 ```
 
@@ -41,8 +41,8 @@ Suitable for modifying the plugin or contributing to development.
 
 ```bash
 # Clone the plugin
-git clone <repository-url> opencode-prompt-recorder
-cd opencode-prompt-recorder
+git clone <repository-url> opencode-prompt-tracker
+cd opencode-prompt-tracker
 
 # Install dependencies
 npm install
@@ -55,13 +55,13 @@ npm run build
 bun run build
 
 # Copy to OpenCode plugins directory
-mkdir -p ~/.opencode/plugins/opencode-prompt-recorder
-cp -r dist/* ~/.opencode/plugins/opencode-prompt-recorder/
+mkdir -p ~/.opencode/plugins/opencode-prompt-tracker
+cp -r dist/* ~/.opencode/plugins/opencode-prompt-tracker/
 
 # Register in opencode.json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-prompt-recorder"]
+  "plugin": ["opencode-prompt-tracker"]
 }
 ```
 
@@ -127,7 +127,7 @@ Design an OpenCode plugin that logs prompts...
 ### Project Structure
 
 ```
-opencode-prompt-recorder/
+opencode-prompt-tracker/
 ├── src/
 │   ├── index.ts              # Main plugin — hook handlers
 │   ├── types.ts             # TypeScript interfaces
@@ -147,7 +147,7 @@ opencode-prompt-recorder/
 ### Developer Commands
 
 ```bash
-npm run build    # Build TypeScript + esbuild → dist/release/opencode-prompt-recorder.js
+npm run build    # Build TypeScript + esbuild → dist/release/opencode-prompt-tracker.js
 npm run dev     # Watch mode: tsc --watch
 npm test        # Run tests with Bun (bun test)
 ```
@@ -160,10 +160,10 @@ npm run build
 
 # 2. Copy to test project
 mkdir -p <test-project>/.opencode/plugins/
-cp dist/release/opencode-prompt-recorder.js <test-project>/.opencode/plugins/
+cp dist/release/opencode-prompt-tracker.js <test-project>/.opencode/plugins/
 
 # 3. Add to opencode.json
-{ "plugin": ["opencode-prompt-recorder"] }
+{ "plugin": ["opencode-prompt-tracker"] }
 ```
 
 ## Publishing

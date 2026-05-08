@@ -1,4 +1,4 @@
-# OpenCode Prompt Recorder Plugin — 设计文档
+# OpenCode Prompt Tracker 插件 — 设计文档
 
 ## 1. 系统架构概览
 

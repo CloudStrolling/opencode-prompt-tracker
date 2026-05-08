@@ -143,53 +143,161 @@ function extractAgentFromInfo(info: any): string {
 
 /**
  * Extracts a brief task description from accumulated message text
- * Method 1: Takes the first non-empty line, truncated to MAX_TASK_DESC_LENGTH
- * Method 2 (fallback): Extract from message content metadata
+ * Fallback chain:
+ * 1. First non-empty line from accumulated text
+ * 2. Task/description fields from info metadata
+ * 3. Content structure fields from info
+ * 4. First line from AI response content (final fallback)
  */
 function extractTaskDescription(text: string, info?: any): string {
-  if (!text) {
-    // Fallback: try to get task from info.metadata or other fields
-    return extractTaskFromInfo(info);
+  // Priority 1: Try to get from accumulated text (first meaningful line)
+  if (text) {
+    const firstLine = text.split('\n').find((line) => line.trim().length > 0) || '';
+    const cleaned = cleanTaskText(firstLine);
+    if (cleaned) return cleaned;
   }
 
-  const firstLine = text.split('\n').find((line) => line.trim().length > 0) || '';
-  const trimmed = firstLine.trim();
+  // Priority 2: Try info metadata fields
+  const fromInfo = extractTaskFromInfo(info);
+  if (fromInfo) return fromInfo;
 
-  // Remove trailing punctuation (colon, semicolon, period, etc.)
-  const cleaned = trimmed.replace(/[;:,.!?]+$/, '').trim();
+  // Priority 3: Try to extract from AI response content structure
+  const fromContent = extractTaskFromContent(info);
+  if (fromContent) return fromContent;
 
-  if (!cleaned) {
-    return extractTaskFromInfo(info);
+  // Priority 4: Final fallback - use first line from raw text
+  if (text) {
+    const lines = text.split('\n').filter((line) => line.trim().length > 0);
+    if (lines.length > 0) {
+      const firstLine = lines[0].trim();
+      // Skip common non-meaningful prefixes
+      const skipPrefixes = ['```', '-----', '===', '---', 'Step', 'Agent:', 'Model:'];
+      const isMeaningful = !skipPrefixes.some((prefix) =>
+        firstLine.toLowerCase().startsWith(prefix.toLowerCase())
+      );
+      if (isMeaningful) {
+        return cleanTaskText(firstLine) || '';
+      }
+    }
   }
 
-  if (cleaned.length <= MAX_TASK_DESC_LENGTH) return cleaned;
-  return cleaned.substring(0, MAX_TASK_DESC_LENGTH) + '...';
+  return '';
 }
 
 /**
- * Fallback method to extract task description from message info metadata
+ * Clean task text by removing trailing punctuation and normalizing
+ */
+function cleanTaskText(text: string): string {
+  if (!text) return '';
+  return text.replace(/[;:,.!?]+$/, '').trim();
+}
+
+/**
+ * Extract task from info metadata fields (various possible structures)
  */
 function extractTaskFromInfo(info: any): string {
   if (!info) return '';
 
   // Try various metadata fields that might contain task info
   const taskFields = [
+    // Direct fields
     info.task,
     info.description,
+    info.name,
+    // Nested content
     info.content?.task,
     info.content?.description,
+    info.content?.name,
+    // Metadata object
     info.metadata?.task,
     info.metadata?.description,
+    info.metadata?.name,
+    // Properties (event-specific)
+    info.properties?.task,
+    info.properties?.description,
+    info.properties?.name,
+    // Message structure
+    info.message?.content?.task,
+    info.message?.content?.description,
+    // Step info
+    info.stepDescription,
+    // Agent info
+    info.agent?.description,
+    info.agent?.task,
+    // Provider/model info
+    info.model,
+    info.providerID,
   ];
 
   for (const field of taskFields) {
     if (field && typeof field === 'string' && field.trim()) {
-      // Clean up trailing punctuation
-      return field.trim().replace(/[;:,.!?]+$/, '').trim();
+      const cleaned = cleanTaskText(field);
+      if (cleaned && cleaned.length <= MAX_TASK_DESC_LENGTH && !isGenericModelName(cleaned)) {
+        return cleaned;
+      }
     }
   }
 
   return '';
+}
+
+/**
+ * Extract task from AI response content (message parts)
+ */
+function extractTaskFromContent(info: any): string {
+  if (!info) return '';
+
+  // Try to get from message.parts array
+  const parts = info.parts || info.message?.parts;
+  if (Array.isArray(parts) && parts.length > 0) {
+    // Look for text parts
+    for (const part of parts) {
+      if (part.type === 'text' && part.text) {
+        const firstLine = part.text.split('\n')[0]?.trim();
+        if (firstLine) {
+          const cleaned = cleanTaskText(firstLine);
+          if (cleaned && cleaned.length > 5 && !isGenericModelName(cleaned)) {
+            return cleaned;
+          }
+        }
+      }
+    }
+  }
+
+  // Try from response content field
+  const content = info.content || info.message?.content;
+  if (content && typeof content === 'string') {
+    const firstLine = content.split('\n')[0]?.trim();
+    if (firstLine) {
+      const cleaned = cleanTaskText(firstLine);
+      if (cleaned && cleaned.length > 5 && !isGenericModelName(cleaned)) {
+        return cleaned;
+      }
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Check if text is a generic model/provider name that shouldn't be used as task
+ */
+function isGenericModelName(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const genericPatterns = [
+    'unknown',
+    'opencode/',
+    'minimax-',
+    'claude-',
+    'gpt-',
+    'gemma-',
+    'deepseek-',
+    'reasoning',
+    'preview',
+    'free',
+  ];
+  return genericPatterns.some((pattern) => lower.includes(pattern));
 }
 
 // ===== Plugin Entry Point =====
@@ -408,14 +516,16 @@ export const PromptRecorderPlugin = async ({
 
           const sessionID = part.sessionID;
           const messageID = part.messageID;
-          if (!sessionID || !messageID) return;
+          if (!sessionID) return;
 
           const state = sessionStates.get(sessionID);
           if (!state) return;
 
+          // Use messageID if available, otherwise use 'first' for the first message
+          const key = messageID || (state.stepCount === 0 ? 'first' : `step-${state.stepCount + 1}`);
           // Append text to the message's accumulated text buffer
-          const existing = state.messageTexts.get(messageID) || '';
-          state.messageTexts.set(messageID, existing + part.text);
+          const existing = state.messageTexts.get(key) || '';
+          state.messageTexts.set(key, existing + part.text);
           return;
         }
 
@@ -483,10 +593,19 @@ export const PromptRecorderPlugin = async ({
 
         // Get task description from accumulated text (with info fallback)
         const messageText = state.messageTexts.get(messageID || '') || '';
-        const taskDescription = extractTaskDescription(messageText, info);
+        // If messageID is undefined/empty, try using step number as key for first message
+        const fallbackText = !messageText && state.stepCount === 1
+          ? state.messageTexts.get('first') || ''
+          : '';
+        const combinedText = messageText || fallbackText;
+        const taskDescription = extractTaskDescription(combinedText, info);
         // Clean up text buffer for this message
         if (messageID) {
           state.messageTexts.delete(messageID);
+        }
+        // Also clean up fallback key
+        if (!messageID && state.stepCount === 1) {
+          state.messageTexts.delete('first');
         }
 
         // Write step log immediately

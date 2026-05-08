@@ -169,7 +169,7 @@ const DEFAULT_CONFIG: PromptRecorderConfig = {
 /**
  * Config file name in project root
  */
-export const CONFIG_FILE_NAME = 'opencode-prompt-recorder.config.json';
+export const CONFIG_FILE_NAME = 'opencode-prompt-tracker.config.json';
 
 /**
  * Loads configuration from project root
@@ -847,7 +847,7 @@ Run: `lsp_diagnostics` on changed files
 ## Task 10: Create Example Config File
 
 **Files:**
-- Create: `opencode-prompt-recorder.config.example.json`
+- Create: `opencode-prompt-tracker.config.example.json`
 
 **Steps:**
 
@@ -895,7 +895,7 @@ Add after Installation section:
 ```markdown
 ## Configuration
 
-Create `opencode-prompt-recorder.config.json` in your project root:
+Create `opencode-prompt-tracker.config.json` in your project root:
 
 ```json
 {
@@ -945,7 +945,7 @@ Run: `git add -A`
 
 Run: `git commit -m "feat: add config module and billing calculation
 
-- add config.ts for loading opencode-prompt-recorder.config.json
+- add config.ts for loading opencode-prompt-tracker.config.json
 - add billing.ts for cost calculation based on model pricing
 - add config interfaces to types.ts
 - modify index.ts to integrate config and billing

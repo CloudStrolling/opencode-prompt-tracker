@@ -100,6 +100,6 @@ describe('getDefaultConfig', () => {
 
 describe('CONFIG_FILE_NAME', () => {
   test('has correct file name', () => {
-    expect(CONFIG_FILE_NAME).toBe('opencode-prompt-recorder.config.json');
+    expect(CONFIG_FILE_NAME).toBe('opencode-prompt-tracker.config.json');
   });
 });
