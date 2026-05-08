@@ -18,10 +18,15 @@
  * Output: <project>/.opencode/prompts/opencode-prompt-YYYY-MM-DD_<sessionID>.md
  */
 
-import type { SessionState, LogData, MessageStep } from './types';
+import type { SessionState, LogData, MessageStep, PromptRecorderConfig } from './types';
 import { appendToPromptRecorder, appendStepToPromptRecorder } from './utils/file-writer';
 import { extractAgentChain } from './utils/agent-extractor';
 import { initLogger, logInfo, logError } from './utils/logger';
+import { loadConfig } from './utils/config';
+import {
+  findModelPricing,
+  calculateStepCost,
+} from './utils/billing';
 
 /** Maximum length for task description extracted from assistant output */
 const MAX_TASK_DESC_LENGTH = 120;
@@ -208,6 +213,7 @@ export const PromptRecorderPlugin = async ({
   directory: string;
 }) => {
   const sessionStates = new Map<string, SessionState>();
+  const config: PromptRecorderConfig = await loadConfig(directory);
 
   initLogger(client, directory);
   await logInfo('Plugin initialized');
@@ -255,7 +261,31 @@ export const PromptRecorderPlugin = async ({
       cacheWrite: state.totalCacheWrite,
     };
 
-    await appendToPromptRecorder(directory, logData, state);
+    // Calculate billing if enabled
+    if (config.billing.enabled) {
+      const modelPricing = findModelPricing(logData.model, config.billing.models);
+      if (modelPricing) {
+        const cost = calculateStepCost(
+          logData.model,
+          logData.inputTokens,
+          logData.outputTokens,
+          logData.cacheRead,
+          logData.cacheWrite,
+          modelPricing
+        );
+        if (cost) {
+          logData.costBreakdown = cost;
+        }
+      }
+    }
+
+    await appendToPromptRecorder(
+      directory,
+      logData,
+      state,
+      config.outputPath,
+      config.filePrefix
+    );
 
     sessionStates.delete(sessionID);
     await logInfo('Session summary logged', {
@@ -484,7 +514,9 @@ export const PromptRecorderPlugin = async ({
           state.sessionStartTime,
           step,
           isFirstStep,
-          state.prompt
+          state.prompt,
+          config.outputPath,
+          config.filePrefix
         );
         state.headerWritten = true;
 

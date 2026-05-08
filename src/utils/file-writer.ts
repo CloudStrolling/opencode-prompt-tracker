@@ -10,6 +10,7 @@
 
 import type { LogData, MessageStep, SessionState } from '../types';
 import { logInfo, logError } from './logger';
+import { formatCostLine } from './billing';
 
 // Markdown header for new log files
 const FILE_HEADER = `# Prompt Recorder - Session
@@ -40,6 +41,11 @@ function formatStepEntry(step: MessageStep): string {
  * Written when session.idle fires, after all step logs
  */
 function formatSummaryEntry(data: LogData): string {
+  let costLine = '';
+  if (data.costBreakdown) {
+    costLine = `\n- ${formatCostLine(data.costBreakdown)}`;
+  }
+
   return `---
 
 ## Summary — ${data.time}
@@ -49,7 +55,7 @@ function formatSummaryEntry(data: LogData): string {
 - **Steps**: ${data.steps}
 - **Total Tokens**: ${data.totalTokens} (input: ${data.inputTokens}, output: ${data.outputTokens})
 - **Cached Tokens**: ${data.cachedTokens} (read: ${data.cacheRead}, write: ${data.cacheWrite})
-- **Uncached Tokens**: ${data.uncachedTokens}
+- **Uncached Tokens**: ${data.uncachedTokens}${costLine}
 
 ---
 
@@ -84,14 +90,21 @@ async function ensureDirectory(promptsDir: string): Promise<void> {
 
 /**
  * Builds the file path for a session's log file
+ * Uses config values for outputPath and filePrefix
  */
-function buildFilePath(directory: string, sessionID: string, dateStr: string): {
+function buildFilePath(
+  directory: string,
+  sessionID: string,
+  dateStr: string,
+  outputPath: string,
+  filePrefix: string
+): {
   fileName: string;
   filePath: string;
   promptsDir: string;
 } {
-  const fileName = `opencode-prompt-${dateStr}_${sessionID}.md`;
-  const promptsDir = `${directory}/.opencode/prompts`;
+  const fileName = `${filePrefix}${dateStr}_${sessionID}.md`;
+  const promptsDir = `${directory}/${outputPath}`;
   const filePath = `${promptsDir}/${fileName}`;
   return { fileName, filePath, promptsDir };
 }
@@ -107,10 +120,18 @@ export async function appendStepToPromptRecorder(
   sessionStartTime: string,
   step: MessageStep,
   isFirstStep: boolean,
-  prompt: string
+  prompt: string,
+  outputPath: string,
+  filePrefix: string
 ): Promise<void> {
   const dateStr = sessionStartTime.substring(0, 10);
-  const { fileName, filePath, promptsDir } = buildFilePath(directory, sessionID, dateStr);
+  const { fileName, filePath, promptsDir } = buildFilePath(
+    directory,
+    sessionID,
+    dateStr,
+    outputPath,
+    filePrefix
+  );
   const entry = formatStepEntry(step);
 
   // On first step, prepend prompt section after header
@@ -156,10 +177,18 @@ export async function appendStepToPromptRecorder(
 export async function appendToPromptRecorder(
   directory: string,
   data: LogData,
-  sessionState: SessionState
+  sessionState: SessionState,
+  outputPath: string,
+  filePrefix: string
 ): Promise<void> {
   const dateStr = sessionState.sessionStartTime.substring(0, 10);
-  const { fileName, filePath, promptsDir } = buildFilePath(directory, data.sessionID, dateStr);
+  const { fileName, filePath, promptsDir } = buildFilePath(
+    directory,
+    data.sessionID,
+    dateStr,
+    outputPath,
+    filePrefix
+  );
   const entry = formatSummaryEntry(data);
 
   try {

@@ -1,0 +1,23 @@
+{
+  "outputPath": ".opencode/prompts",
+  "filePrefix": "opencode-prompt-",
+  "billing": {
+    "enabled": true,
+    "models": [
+      {
+        "model": "opencode/hy3-preview-free",
+        "input": 0.0,
+        "output": 0.0,
+        "cacheRead": 0.0,
+        "cacheWrite": 0.0
+      },
+      {
+        "model": "opencode/sonnet-4",
+        "input": 3.75,
+        "output": 15.0,
+        "cacheRead": 0.3,
+        "cacheWrite": 3.75
+      }
+    ]
+  }
+}

@@ -80,6 +80,58 @@ export interface SessionState {
 }
 
 /**
+ * Configuration for billing - price per million tokens
+ */
+export interface BillingModelConfig {
+  /** Full model name, must match the model field in markdown */
+  model: string;
+  /** Price per million input tokens (uncached) */
+  input: number;
+  /** Price per million output tokens */
+  output: number;
+  /** Price per million cache hit read tokens */
+  cacheRead: number;
+  /** Price per million cache hit write tokens */
+  cacheWrite: number;
+}
+
+/**
+ * Billing configuration section
+ */
+export interface BillingConfig {
+  /** Master switch for billing feature */
+  enabled: boolean;
+  /** List of model pricing configurations */
+  models: BillingModelConfig[];
+}
+
+/**
+ * Main configuration for prompt recorder plugin
+ */
+export interface PromptRecorderConfig {
+  /** Relative path from project root to output directory */
+  outputPath: string;
+  /** Prefix for generated markdown file names */
+  filePrefix: string;
+  /** Billing configuration */
+  billing: BillingConfig;
+}
+
+/**
+ * Cost breakdown for a step or session
+ */
+export interface CostBreakdown {
+  /** Cost for uncached input tokens */
+  inputCost: number;
+  /** Cost for output tokens */
+  outputCost: number;
+  /** Cost for cached tokens (read + write) */
+  cacheCost: number;
+  /** Total cost */
+  totalCost: number;
+}
+
+/**
  * Represents the summary log entry for a completed session
  * Written when session.idle fires, after all step logs have been written
  */
@@ -112,4 +164,6 @@ export interface LogData {
   cacheRead: number;
   /** Number of tokens written to cache */
   cacheWrite: number;
+  /** Optional cost breakdown (present when billing enabled and model matched) */
+  costBreakdown?: CostBreakdown;
 }
