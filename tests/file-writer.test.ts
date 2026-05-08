@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { LogData, MessageStep } from '../src/types';
 
-describe('appendToPromptLog logic', () => {
+describe('appendToPromptRecorder logic', () => {
   test('should generate correct summary entry with token breakdown', () => {
     const data: LogData = {
       sessionID: 'abc123',

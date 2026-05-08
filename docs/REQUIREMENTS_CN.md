@@ -1,9 +1,9 @@
-# OpenCode Prompt Log Plugin — 需求文档
+# OpenCode Prompt Recorder Plugin — 需求文档
 
 ## 1. 项目概述
 
 ### 1.1 项目名称
-OpenCode Prompt Log Plugin（OpenCode 对话日志插件）
+OpenCode Prompt Recorder Plugin（OpenCode 对话日志插件）
 
 ### 1.2 项目类型
 OpenCode 插件（TypeScript/JavaScript）

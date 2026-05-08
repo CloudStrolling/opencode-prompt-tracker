@@ -1,9 +1,9 @@
-# OpenCode Prompt Log Plugin — Requirements Document
+# OpenCode Prompt Recorder Plugin — Requirements Document
 
 ## 1. Project Overview
 
 ### 1.1 Project Name
-OpenCode Prompt Log Plugin
+OpenCode Prompt Recorder Plugin
 
 ### 1.2 Project Type
 OpenCode Plugin (TypeScript/JavaScript)

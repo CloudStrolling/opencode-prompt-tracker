@@ -1,4 +1,4 @@
-# OpenCode Prompt Log Plugin — 设计文档
+# OpenCode Prompt Recorder Plugin — 设计文档
 
 ## 1. 系统架构概览
 
@@ -14,7 +14,7 @@
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      PromptLogPlugin（入口点）                               │
+│                      PromptRecorderPlugin（入口点）                               │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  sessionStates (Map<string, SessionState>)                         │   │
 │  │  - 内存中存储活动会话                                               │   │
@@ -54,9 +54,9 @@
 
 | 模块 | 职责 | 公共 API |
 |------|------|----------|
-| `index.ts` | 主插件入口，钩子处理器，会话状态管理 | `PromptLogPlugin()` |
+| `index.ts` | 主插件入口，钩子处理器，会话状态管理 | `PromptRecorderPlugin()` |
 | `types.ts` | 所有数据结构的 TypeScript 接口 | 导出接口 |
-| `file-writer.ts` | Markdown 文件 I/O，步骤和摘要日志 | `appendStepToPromptLog()`, `appendToPromptLog()` |
+| `file-writer.ts` | Markdown 文件 I/O，步骤和摘要日志 | `appendStepToPromptRecorder()`, `appendToPromptRecorder()` |
 | `agent-extractor.ts` | 解析消息部分以获取 Agent 信息 | `extractAgentChain()` |
 | `logger.ts` | 带备用功能的日志抽象 | `initLogger()`, `logInfo()`, `logError()` |
 
@@ -79,7 +79,7 @@
 
 ```typescript
 // 主插件工厂
-PromptLogPlugin({
+PromptRecorderPlugin({
   client: any,
   directory: string
 }): Promise<{
@@ -133,7 +133,7 @@ session.idle（会话结束）
 
 ```typescript
 // 写入步骤条目（每个助手消息调用一次）
-appendStepToPromptLog(
+appendStepToPromptRecorder(
   directory: string,
   sessionID: string,
   sessionStartTime: string,
@@ -143,7 +143,7 @@ appendStepToPromptLog(
 ): Promise<void>
 
 // 写入摘要条目（每个会话调用一次）
-appendToPromptLog(
+appendToPromptRecorder(
   directory: string,
   data: LogData,
   sessionState: SessionState
@@ -152,7 +152,7 @@ appendToPromptLog(
 
 **文件格式设计**：
 ```
-# Prompt Log - Session
+# Prompt Recorder - Session
 
 ### Prompt
 <用户原始提示词>

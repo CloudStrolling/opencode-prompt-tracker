@@ -1,5 +1,5 @@
 /**
- * Type definitions for the OpenCode Prompt Log Plugin
+ * Type definitions for the OpenCode Prompt Recorder Plugin
  * Defines data structures used for tracking conversation metadata and logging
  */
 

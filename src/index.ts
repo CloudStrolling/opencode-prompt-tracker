@@ -1,5 +1,5 @@
 /**
- * OpenCode Prompt Log Plugin - Main Entry Point
+ * OpenCode Prompt Recorder Plugin - Main Entry Point
  *
  * This plugin records each conversation's prompt, model, agent call chain,
  * duration, and token usage to daily Markdown files.
@@ -19,7 +19,7 @@
  */
 
 import type { SessionState, LogData, MessageStep } from './types';
-import { appendToPromptLog, appendStepToPromptLog } from './utils/file-writer';
+import { appendToPromptRecorder, appendStepToPromptRecorder } from './utils/file-writer';
 import { extractAgentChain } from './utils/agent-extractor';
 import { initLogger, logInfo, logError } from './utils/logger';
 
@@ -161,7 +161,7 @@ function extractTaskDescription(text: string): string {
  * - Summary with accumulated totals is written when session.idle fires
  * - Cleans up session state after logging to prevent memory leaks
  */
-export const PromptLogPlugin = async ({
+export const PromptRecorderPlugin = async ({
   client,
   directory,
 }: {
@@ -216,7 +216,7 @@ export const PromptLogPlugin = async ({
       cacheWrite: state.totalCacheWrite,
     };
 
-    await appendToPromptLog(directory, logData, state);
+    await appendToPromptRecorder(directory, logData, state);
 
     sessionStates.delete(sessionID);
     await logInfo('Session summary logged', {
@@ -432,7 +432,7 @@ export const PromptLogPlugin = async ({
         };
 
         const isFirstStep = !state.headerWritten;
-        await appendStepToPromptLog(
+        await appendStepToPromptRecorder(
           directory,
           sessionID,
           state.sessionStartTime,

@@ -1,4 +1,4 @@
-# OpenCode Prompt Log Plugin — Design Document
+# OpenCode Prompt Recorder Plugin — Design Document
 
 ## 1. System Architecture Overview
 
@@ -14,7 +14,7 @@ The plugin follows a modular, event-driven architecture using OpenCode's hook sy
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      PromptLogPlugin (Entry Point)                          │
+│                      PromptRecorderPlugin (Entry Point)                          │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │  sessionStates (Map<string, SessionState>)                         │   │
 │  │  - In-memory storage for active sessions                          │   │
@@ -54,9 +54,9 @@ The plugin follows a modular, event-driven architecture using OpenCode's hook sy
 
 | Module | Responsibility | Public API |
 |--------|----------------|------------|
-| `index.ts` | Main plugin entry, hook handlers, session state management | `PromptLogPlugin()` |
+| `index.ts` | Main plugin entry, hook handlers, session state management | `PromptRecorderPlugin()` |
 | `types.ts` | TypeScript interfaces for all data structures | Export interfaces |
-| `file-writer.ts` | Markdown file I/O, step and summary logging | `appendStepToPromptLog()`, `appendToPromptLog()` |
+| `file-writer.ts` | Markdown file I/O, step and summary logging | `appendStepToPromptRecorder()`, `appendToPromptRecorder()` |
 | `agent-extractor.ts` | Parse message parts for agent information | `extractAgentChain()` |
 | `logger.ts` | Logging abstraction with fallback | `initLogger()`, `logInfo()`, `logError()` |
 
@@ -79,7 +79,7 @@ The plugin follows a modular, event-driven architecture using OpenCode's hook sy
 
 ```typescript
 // Main plugin factory
-PromptLogPlugin({
+PromptRecorderPlugin({
   client: any,
   directory: string
 }): Promise<{
@@ -133,7 +133,7 @@ Write summary, cleanup SessionState
 
 ```typescript
 // Write step entry (called per assistant message)
-appendStepToPromptLog(
+appendStepToPromptRecorder(
   directory: string,
   sessionID: string,
   sessionStartTime: string,
@@ -143,7 +143,7 @@ appendStepToPromptLog(
 ): Promise<void>
 
 // Write summary entry (called once per session)
-appendToPromptLog(
+appendToPromptRecorder(
   directory: string,
   data: LogData,
   sessionState: SessionState
@@ -152,7 +152,7 @@ appendToPromptLog(
 
 **File Format Design**:
 ```
-# Prompt Log - Session
+# Prompt Recorder - Session
 
 ### Prompt
 <user's original prompt>

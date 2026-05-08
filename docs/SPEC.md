@@ -1,9 +1,9 @@
-# OpenCode Prompt Log Plugin - Specification
+# OpenCode Prompt Recorder Plugin - Specification
 
 ## 1. Project Overview
 
 ### Project Name
-OpenCode Prompt Log Plugin
+OpenCode Prompt Recorder Plugin
 
 ### Project Type
 OpenCode Plugin (TypeScript/JavaScript)
@@ -146,7 +146,7 @@ interface LogData {
 ### 4.1 Module Structure
 
 ```
-opencode-prompt-log/
+opencode-prompt-recorder/
 ├── src/
 │   ├── index.ts              # Main plugin entry, hook handlers
 │   ├── types.ts              # TypeScript interfaces
@@ -183,13 +183,13 @@ Clean up SessionState from memory
 
 | Function | Responsibility |
 |----------|----------------|
-| `PromptLogPlugin()` | Main plugin factory, returns hooks |
+| `PromptRecorderPlugin()` | Main plugin factory, returns hooks |
 | `chat.message` hook | Capture user message, store session state |
 | `event` hook | Monitor completion, write log entry |
 | `extractPromptFromParts()` | Extract text from message parts |
 | `extractModelFromInput()` | Extract model identifier |
 | `extractAgentChain()` | Extract agent names from parts |
-| `appendToPromptLog()` | Write log entry to Markdown file |
+| `appendToPromptRecorder()` | Write log entry to Markdown file |
 | `formatLogEntry()` | Format data as Markdown |
 | `initLogger()` | Initialize logging system |
 | `logInfo()` / `logError()` | Log messages with fallback |
@@ -201,7 +201,7 @@ Clean up SessionState from memory
 ### Markdown Log File Format
 
 ```markdown
-# Prompt Log - Session
+# Prompt Recorder - Session
 
 ## 10:30:15
 

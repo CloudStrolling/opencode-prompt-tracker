@@ -1,4 +1,4 @@
-# OpenCode Prompt Log Plugin
+# OpenCode Prompt Recorder Plugin
 
 An OpenCode plugin that records prompts, models, agent call chains, duration, and token usage for each conversation into daily Markdown files.
 
@@ -19,7 +19,7 @@ An OpenCode plugin that records prompts, models, agent call chains, duration, an
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-prompt-log"]
+  "plugin": ["opencode-prompt-recorder"]
 }
 ```
 
@@ -41,8 +41,8 @@ Suitable for users who need to modify the plugin or participate in development.
 1. Clone or download this plugin to local:
 
 ```bash
-git clone <repository-url> opencode-prompt-log
-cd opencode-prompt-log
+git clone <repository-url> opencode-prompt-recorder
+cd opencode-prompt-recorder
 ```
 
 2. Install dependencies:
@@ -66,19 +66,19 @@ bun run build
 ```bash
 # The plugin directory location depends on your OpenCode configuration
 # Usually it's ~/.opencode/plugins/ or <project-directory>/.opencode/plugins/
-mkdir -p ~/.opencode/plugins/opencode-prompt-log
-cp -r dist/* ~/.opencode/plugins/opencode-prompt-log/
+mkdir -p ~/.opencode/plugins/opencode-prompt-recorder
+cp -r dist/* ~/.opencode/plugins/opencode-prompt-recorder/
 ```
 
 5. Register the plugin in OpenCode configuration:
 
-Edit the `opencode.json` file in your project root or user home directory, add `"opencode-prompt-log"` to the `plugin` array:
+Edit the `opencode.json` file in your project root or user home directory, add `"opencode-prompt-recorder"` to the `plugin` array:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "opencode-prompt-log"
+    "opencode-prompt-recorder"
   ]
 }
 ```
@@ -90,7 +90,7 @@ If the `plugin` array already has other plugins, simply append:
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
     "opencode-browser",
-    "opencode-prompt-log"
+    "opencode-prompt-recorder"
   ]
 }
 ```
@@ -133,7 +133,7 @@ Log files use Markdown table format:
 ### Project Structure
 
 ```
-opencode-prompt-log/
+opencode-prompt-recorder/
 ├── src/
 │   ├── index.ts              # Plugin entry point
 │   ├── types.ts              # Type definitions
@@ -191,9 +191,9 @@ opencode
 ### Preparation
 
 1. Ensure `package.json` information is correct:
-   - `name`: Package name (must be `opencode-prompt-log`)
+   - `name`: Package name (must be `opencode-prompt-recorder`)
    - `version`: Version number
-   - `main`: Entry file (`dist/release/opencode-prompt-log.js`)
+   - `main`: Entry file (`dist/release/opencode-prompt-recorder.js`)
    - `files`: Files to include for publishing (`dist/`, `README.md`, `LICENSE`)
 
 2. Ensure `README.md`, `README_CM.md`, and `LICENSE` files exist
@@ -211,7 +211,7 @@ npm run build
 # 3. Publish to npm
 npm publish
 
-# If it's a scoped package (e.g., @username/opencode-prompt-log), add --access public
+# If it's a scoped package (e.g., @username/opencode-prompt-recorder), add --access public
 npm publish --access public
 ```
 
@@ -234,10 +234,10 @@ npm publish
 
 ### Verify Publishing
 
-After publishing, you can view the package information on [npm website](https://www.npmjs.com/package/opencode-prompt-log), or verify with:
+After publishing, you can view the package information on [npm website](https://www.npmjs.com/package/opencode-prompt-recorder), or verify with:
 
 ```bash
-npm view opencode-prompt-log
+npm view opencode-prompt-recorder
 ```
 
 ## Technical Details
@@ -253,8 +253,8 @@ npm view opencode-prompt-log
 ### Plugin Not Loaded
 
 1. Check if the plugin is correctly installed in the OpenCode plugins directory
-2. Check if the OpenCode console shows `[PromptLog] Plugin activated` log
-3. Confirm that `dist/release/opencode-prompt-log.js` file has been generated
+2. Check if the OpenCode console shows `[PromptRecorder] Plugin activated` log
+3. Confirm that `dist/release/opencode-prompt-recorder.js` file has been generated
 
 ### Log File Not Generated
 
@@ -277,7 +277,7 @@ npm run build
 
 This project is licensed under the Apache License 2.0. See [LICENSE](./LICENSE) file for details.
 
-Copyright 2026 OpenCode Prompt Log Contributors
+Copyright 2026 OpenCode Prompt Recorder Contributors
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

@@ -1,5 +1,5 @@
 /**
- * Logger utility for the Prompt Log Plugin
+ * Logger utility for the Prompt Recorder Plugin
  * Provides both OpenCode client logging and file-based fallback logging
  */
 

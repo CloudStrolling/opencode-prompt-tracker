@@ -12,7 +12,7 @@ import type { LogData, MessageStep, SessionState } from '../types';
 import { logInfo, logError } from './logger';
 
 // Markdown header for new log files
-const FILE_HEADER = `# Prompt Log - Session
+const FILE_HEADER = `# Prompt Recorder - Session
 
 `;
 
@@ -101,7 +101,7 @@ function buildFilePath(directory: string, sessionID: string, dateStr: string): {
  * Called immediately when each assistant message completes
  * Creates the file with header + prompt if this is the first step
  */
-export async function appendStepToPromptLog(
+export async function appendStepToPromptRecorder(
   directory: string,
   sessionID: string,
   sessionStartTime: string,
@@ -153,7 +153,7 @@ export async function appendStepToPromptLog(
  * Appends a summary log entry to the Markdown file
  * Called when session.idle fires, after all step logs have been written
  */
-export async function appendToPromptLog(
+export async function appendToPromptRecorder(
   directory: string,
   data: LogData,
   sessionState: SessionState

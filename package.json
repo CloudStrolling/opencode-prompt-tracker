@@ -1,12 +1,12 @@
 {
-  "name": "opencode-prompt-log",
+  "name": "opencode-prompt-recorder",
   "version": "1.0.0",
   "description": "OpenCode plugin to log prompts, models, agents, duration, and token usage to daily Markdown files",
-  "main": "dist/release/opencode-prompt-log.js",
+  "main": "dist/release/opencode-prompt-recorder.js",
   "type": "module",
   "scripts": {
     "build": "tsc && npm run bundle",
-    "bundle": "esbuild dist/index.js --bundle --platform=node --format=esm --outfile=dist/release/opencode-prompt-log.js",
+    "bundle": "esbuild dist/index.js --bundle --platform=node --format=esm --outfile=dist/release/opencode-prompt-recorder.js",
     "test": "bun test",
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build"
@@ -27,12 +27,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-username/opencode-prompt-log.git"
+    "url": "git+https://github.com/your-username/opencode-prompt-recorder.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/opencode-prompt-log/issues"
+    "url": "https://github.com/your-username/opencode-prompt-recorder/issues"
   },
-  "homepage": "https://github.com/your-username/opencode-prompt-log#readme",
+  "homepage": "https://github.com/your-username/opencode-prompt-recorder#readme",
   "files": [
     "dist/release/",
     "README.md",
