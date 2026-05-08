@@ -138,14 +138,53 @@ function extractAgentFromInfo(info: any): string {
 
 /**
  * Extracts a brief task description from accumulated message text
- * Takes the first non-empty line, truncated to MAX_TASK_DESC_LENGTH
+ * Method 1: Takes the first non-empty line, truncated to MAX_TASK_DESC_LENGTH
+ * Method 2 (fallback): Extract from message content metadata
  */
-function extractTaskDescription(text: string): string {
-  if (!text) return '';
+function extractTaskDescription(text: string, info?: any): string {
+  if (!text) {
+    // Fallback: try to get task from info.metadata or other fields
+    return extractTaskFromInfo(info);
+  }
+
   const firstLine = text.split('\n').find((line) => line.trim().length > 0) || '';
   const trimmed = firstLine.trim();
-  if (trimmed.length <= MAX_TASK_DESC_LENGTH) return trimmed;
-  return trimmed.substring(0, MAX_TASK_DESC_LENGTH) + '...';
+
+  // Remove trailing punctuation (colon, semicolon, period, etc.)
+  const cleaned = trimmed.replace(/[;:,.!?]+$/, '').trim();
+
+  if (!cleaned) {
+    return extractTaskFromInfo(info);
+  }
+
+  if (cleaned.length <= MAX_TASK_DESC_LENGTH) return cleaned;
+  return cleaned.substring(0, MAX_TASK_DESC_LENGTH) + '...';
+}
+
+/**
+ * Fallback method to extract task description from message info metadata
+ */
+function extractTaskFromInfo(info: any): string {
+  if (!info) return '';
+
+  // Try various metadata fields that might contain task info
+  const taskFields = [
+    info.task,
+    info.description,
+    info.content?.task,
+    info.content?.description,
+    info.metadata?.task,
+    info.metadata?.description,
+  ];
+
+  for (const field of taskFields) {
+    if (field && typeof field === 'string' && field.trim()) {
+      // Clean up trailing punctuation
+      return field.trim().replace(/[;:,.!?]+$/, '').trim();
+    }
+  }
+
+  return '';
 }
 
 // ===== Plugin Entry Point =====
@@ -231,11 +270,18 @@ export const PromptRecorderPlugin = async ({
     /**
      * chat.message hook - captures user messages when sent
      * Records initial session state including prompt, model, and agent chain
+     * If session already exists with completed messages, writes summary first then starts fresh
      */
     'chat.message': async (input: any, output: any) => {
       try {
         const sessionID = input.sessionID;
         if (!sessionID) return;
+
+        // Check if session already exists with completed messages - need to write summary first
+        const existingState = sessionStates.get(sessionID);
+        if (existingState && existingState.hasCompletedMessage && existingState.headerWritten) {
+          await writeLogAndCleanup(sessionID);
+        }
 
         const prompt = extractPromptFromParts(output.parts);
         const model = extractModelFromInput(input);
@@ -405,9 +451,9 @@ export const PromptRecorderPlugin = async ({
 
         const agentName = extractAgentFromInfo(info);
 
-        // Get task description from accumulated text
+        // Get task description from accumulated text (with info fallback)
         const messageText = state.messageTexts.get(messageID || '') || '';
-        const taskDescription = extractTaskDescription(messageText);
+        const taskDescription = extractTaskDescription(messageText, info);
         // Clean up text buffer for this message
         if (messageID) {
           state.messageTexts.delete(messageID);
