@@ -27,16 +27,16 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-username/opencode-prompt-tracker.git"
+    "url": "git+https://github.com/CloudStrolling/opencode-prompt-tracker.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/opencode-prompt-tracker/issues"
+    "url": "https://github.com/CloudStrolling/opencode-prompt-tracker/issues"
   },
-  "homepage": "https://github.com/your-username/opencode-prompt-tracker#readme",
+  "homepage": "https://github.com/CloudStrolling/opencode-prompt-tracker#readme",
   "files": [
     "dist/release/",
     "README.md",
-    "README_CM.md",
+    "README_CN.md",
     "LICENSE"
   ],
   "dependencies": {

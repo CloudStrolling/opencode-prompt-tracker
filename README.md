@@ -1,4 +1,4 @@
-# OpenCode Prompt Recorder Plugin
+# OpenCode Prompt Tracker Plugin
 
 An OpenCode plugin that automatically records each conversation's prompt, model, agent call chain, duration, and token usage to daily Markdown files.
 
@@ -10,6 +10,7 @@ An OpenCode plugin that automatically records each conversation's prompt, model,
 - **Duration Tracking**: Records conversation processing duration
 - **Step-by-Step Logging**: Logs each assistant message as it completes
 - **Daily Archiving**: Generates log files organized by date
+- **Cost Calculation**: Optional billing based on model pricing (when configured)
 
 ## Installation
 
@@ -122,6 +123,44 @@ Design an OpenCode plugin that logs prompts...
 | Cache Read | Tokens read from cache (billed at discount) |
 | Cache Write | Tokens written to cache (billed at premium) |
 
+## Configuration
+
+Create `opencode-prompt-tracker.config.json` in your project root:
+
+```json
+{
+  "outputPath": ".opencode/prompts",
+  "filePrefix": "opencode-prompt-",
+  "billing": {
+    "enabled": true,
+    "models": [
+      {
+        "model": "opencode/sonnet-4",
+        "input": 3.75,
+        "output": 15.0,
+        "cacheRead": 0.3,
+        "cacheWrite": 3.75
+      }
+    ]
+  }
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `outputPath` | `.opencode/prompts` | Output directory relative to project root |
+| `filePrefix` | `opencode-prompt-` | File name prefix |
+| `billing.enabled` | `false` | Enable cost calculation |
+| `billing.models` | `[]` | Model pricing config (price per 1M tokens) |
+
+When billing is enabled and the model is configured, the summary includes a cost line:
+
+```markdown
+- **Cost**: $0.0123 (input: $0.005, output: $0.007, cache: $0.0003)
+```
+
+Without a config file, the plugin uses all defaults and works as before.
+
 ## Development
 
 ### Project Structure
@@ -134,14 +173,17 @@ opencode-prompt-tracker/
 │   └── utils/
 │       ├── file-writer.ts  # Writes .md logs to .opencode/prompts/
 │       ├── agent-extractor.ts # Parses agent chain from message parts
-│       └── logger.ts       # Plugin logging to OpenCode console
+│       ├── logger.ts       # Plugin logging to OpenCode console
+│       ├── config.ts       # Config loader
+│       └── billing.ts     # Cost calculation
 ├── tests/                   # Test files
-├── dist/                    # Build output
+├── dist/                   # Build output
 ├── package.json
 ├── tsconfig.json
 ├── README.md               # English README
 ├── README_CN.md           # Chinese README
-└── AGENTS.md              # Developer instructions
+├── AGENTS.md              # Developer instructions
+└── opencode-prompt-tracker.config.example.json
 ```
 
 ### Developer Commands
@@ -149,7 +191,7 @@ opencode-prompt-tracker/
 ```bash
 npm run build    # Build TypeScript + esbuild → dist/release/opencode-prompt-tracker.js
 npm run dev     # Watch mode: tsc --watch
-npm test        # Run tests with Bun (bun test)
+npm test       # Run tests with Bun (bun test)
 ```
 
 ### Local Testing
@@ -192,4 +234,4 @@ npm publish --access public
 
 Licensed under the Apache License 2.0. See [LICENSE](./LICENSE) file for details.
 
-Copyright 2026 OpenCode Prompt Recorder Contributors
+Copyright 2026 OpenCode Prompt Tracker Contributors
