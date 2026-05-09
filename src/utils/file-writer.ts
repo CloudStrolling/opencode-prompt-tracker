@@ -8,23 +8,42 @@
  * 2. Summary log — written when the entire session goes idle
  */
 
-import type { LogData, MessageStep, SessionState } from '../types';
+import type { LogData, MessageStep, SessionState, PluginsMCPsInfo } from '../types';
 import { logInfo, logError } from './logger';
 import { formatCostLine } from './billing';
 
 // Markdown header for new log files
-const FILE_HEADER = `# Prompt Recorder - Session
+const FILE_HEADER = `# Prompt-Tracker
 
 `;
+
+/**
+ * Formats plugins and MCPs info into Markdown format
+ */
+function formatPluginsMCPs(info: PluginsMCPsInfo): string {
+  const lines: string[] = [];
+
+  if (info.plugins.length > 0) {
+    lines.push(`### Plugins`);
+    lines.push(info.plugins.map((p) => `- ${p}`).join('\n'));
+    lines.push('');
+  }
+
+  if (info.mcps.length > 0) {
+    lines.push(`### MCPs`);
+    lines.push(info.mcps.map((m) => `- ${m}`).join('\n'));
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
 
 /**
  * Formats a single step entry into Markdown format
  * Written immediately when each assistant message completes
  */
 function formatStepEntry(step: MessageStep): string {
-  const desc = step.taskDescription
-    ? `\n- **Task**: ${step.taskDescription}`
-    : '';
+  const desc = step.taskDescription ? `\n- **Task**: ${step.taskDescription}` : '';
   return `### Step ${step.stepNumber} — ${step.time}
 - **Agent**: ${step.agent}
 - **Model**: ${step.model}
@@ -48,7 +67,7 @@ function formatSummaryEntry(data: LogData): string {
 
   return `---
 
-## Summary — ${data.time}
+### Summary — ${data.time}
 - **Model**: ${data.model}
 - **Agent Chain**: ${data.agentChain}
 - **Total Duration**: ${data.duration}s
@@ -121,6 +140,7 @@ export async function appendStepToPromptRecorder(
   step: MessageStep,
   isFirstStep: boolean,
   prompt: string,
+  pluginsMCPs: PluginsMCPsInfo,
   outputPath: string,
   filePrefix: string
 ): Promise<void> {
@@ -134,8 +154,12 @@ export async function appendStepToPromptRecorder(
   );
   const entry = formatStepEntry(step);
 
-  // On first step, prepend prompt section after header
-  const promptSection = isFirstStep ? `### Prompt\n${prompt}\n\n` : '';
+  // On first step, prepend plugins/MCPs info and prompt section after header
+  let prependSection = '';
+  if (isFirstStep) {
+    const pluginsMCPSection = formatPluginsMCPs(pluginsMCPs);
+    prependSection = pluginsMCPSection + `## Prompt\n${prompt}\n\n`;
+  }
 
   try {
     await ensureDirectory(promptsDir);
@@ -149,12 +173,12 @@ export async function appendStepToPromptRecorder(
         existingContent = await file.text();
       }
 
-      const content = (fileExists ? existingContent : FILE_HEADER) + promptSection + entry;
+      const content = (fileExists ? existingContent : FILE_HEADER) + prependSection + entry;
       await Bun.write(filePath, content);
     } else {
       const fs = await import('fs');
       const headerIfNeeded = !fs.existsSync(filePath) ? FILE_HEADER : '';
-      fs.appendFileSync(filePath, headerIfNeeded + promptSection + entry, 'utf8');
+      fs.appendFileSync(filePath, headerIfNeeded + prependSection + entry, 'utf8');
     }
 
     await logInfo('Logged step', {

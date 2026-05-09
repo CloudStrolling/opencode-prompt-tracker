@@ -18,7 +18,7 @@
  * Output: <project>/.opencode/prompts/opencode-prompt-YYYY-MM-DD_<sessionID>.md
  */
 
-import type { SessionState, LogData, MessageStep, PromptRecorderConfig } from './types';
+import type { SessionState, LogData, MessageStep, PromptRecorderConfig, PluginsMCPsInfo } from './types';
 import { appendToPromptRecorder, appendStepToPromptRecorder } from './utils/file-writer';
 import { extractAgentChain } from './utils/agent-extractor';
 import { initLogger, logInfo, logError } from './utils/logger';
@@ -130,15 +130,88 @@ function extractTokens(info: any): {
 
 /**
  * Extracts the agent name from an assistant message info object
+ * Tries multiple fields in order of priority to get meaningful agent names
  */
 function extractAgentFromInfo(info: any): string {
+  // Priority 1: info.agent (direct string or object with name)
   if (info.agent) {
-    return typeof info.agent === 'string' ? info.agent : info.agent.name || 'unknown';
+    if (typeof info.agent === 'string' && info.agent.trim()) {
+      return info.agent.trim();
+    }
+    if (info.agent.name && typeof info.agent.name === 'string') {
+      return info.agent.name.trim();
+    }
   }
-  if (info.providerID) {
-    return info.providerID;
+
+  // Priority 2: info.name (some events use this field)
+  if (info.name && typeof info.name === 'string' && info.name.trim()) {
+    return info.name.trim();
   }
+
+  // Priority 3: Try to extract from agent info object
+  if (info.agentInfo?.name) {
+    return info.agentInfo.name;
+  }
+
+  // Priority 4: info.providerID - but filter out generic "opencode"
+  if (info.providerID && typeof info.providerID === 'string') {
+    const provider = info.providerID.trim().toLowerCase();
+    // Skip generic provider names that aren't meaningful agent identifiers
+    if (provider && provider !== 'opencode' && provider !== 'unknown') {
+      return info.providerID.trim();
+    }
+  }
+
+  // Priority 5: Try to get from message parts if available
+  if (info.parts && Array.isArray(info.parts)) {
+    for (const part of info.parts) {
+      if (part.type === 'agent' && part.name) {
+        return part.name;
+      }
+      if (part.type === 'subtask' && part.agent) {
+        return part.agent;
+      }
+    }
+  }
+
+  // Fallback: unknown
   return 'unknown';
+}
+
+/**
+ * Extracts enabled plugins and MCP servers from client object
+ */
+function extractPluginsAndMCPs(client: any): PluginsMCPsInfo {
+  const result: PluginsMCPsInfo = {
+    plugins: [],
+    mcps: [],
+  };
+
+  // Try to get plugins from client
+  if (client?.plugins) {
+    const plugins = client.plugins;
+    if (Array.isArray(plugins)) {
+      result.plugins = plugins.map((p: any) => p.name || p.id || String(p)).filter(Boolean);
+    } else if (typeof plugins === 'object') {
+      result.plugins = Object.keys(plugins).filter((key) => key !== 'opencode-prompt-tracker');
+    }
+  }
+
+  // Try to get MCPS from client
+  if (client?.mcps) {
+    const mcps = client.mcps;
+    if (Array.isArray(mcps)) {
+      result.mcps = mcps.map((m: any) => m.name || m.id || String(m)).filter(Boolean);
+    } else if (typeof mcps === 'object') {
+      result.mcps = Object.keys(mcps);
+    }
+  }
+
+  // Remove duplicates and filter out self
+  result.plugins = [...new Set(result.plugins)].filter((p) => p !== 'opencode-prompt-tracker');
+  result.mcps = [...new Set(result.mcps)];
+
+  return result;
 }
 
 /**
@@ -288,6 +361,7 @@ function isGenericModelName(text: string): boolean {
   const genericPatterns = [
     'unknown',
     'opencode/',
+    'opencode', // Also match "opencode" alone
     'minimax-',
     'claude-',
     'gpt-',
@@ -296,6 +370,7 @@ function isGenericModelName(text: string): boolean {
     'reasoning',
     'preview',
     'free',
+    'task:',
   ];
   return genericPatterns.some((pattern) => lower.includes(pattern));
 }
@@ -322,9 +397,13 @@ export const PromptRecorderPlugin = async ({
 }) => {
   const sessionStates = new Map<string, SessionState>();
   const config: PromptRecorderConfig = await loadConfig(directory);
+  const pluginsMCPsInfo = extractPluginsAndMCPs(client);
 
   initLogger(client, directory);
-  await logInfo('Plugin initialized');
+  await logInfo('Plugin initialized', {
+    plugins: pluginsMCPsInfo.plugins,
+    mcps: pluginsMCPsInfo.mcps,
+  });
 
   /**
    * Writes the summary log for a session and cleans up state.
@@ -457,6 +536,7 @@ export const PromptRecorderPlugin = async ({
           stepCount: 0,
           headerWritten: false,
           messageTexts: new Map<string, string>(),
+          pluginsMCPs: pluginsMCPsInfo,
         };
 
         sessionStates.set(sessionID, state);
@@ -634,6 +714,7 @@ export const PromptRecorderPlugin = async ({
           step,
           isFirstStep,
           state.prompt,
+          state.pluginsMCPs,
           config.outputPath,
           config.filePrefix
         );

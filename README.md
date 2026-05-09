@@ -79,9 +79,9 @@ Output is written to `<project>/.opencode/prompts/opencode-prompt-YYYY-MM-DD_<se
 ### Log File Format
 
 ```markdown
-# Prompt Recorder - Session
+# prompt-tracker
 
-### Prompt
+## Prompt
 Design an OpenCode plugin that logs prompts...
 
 ### Step 1 — 10:30:15
@@ -95,7 +95,7 @@ Design an OpenCode plugin that logs prompts...
 
 ---
 
-## Summary — 10:30:15
+### Summary — 10:30:15
 - **Model**: opencode/hy3-preview-free
 - **Agent Chain**: oracle → build
 - **Total Duration**: 12.34s

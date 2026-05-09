@@ -77,6 +77,8 @@ export interface SessionState {
   headerWritten: boolean;
   /** Accumulated text content per messageID, collected from message.part.updated events */
   messageTexts: Map<string, string>;
+  /** Enabled plugins and MCP servers information */
+  pluginsMCPs: PluginsMCPsInfo;
 }
 
 /**
@@ -129,6 +131,16 @@ export interface CostBreakdown {
   cacheCost: number;
   /** Total cost */
   totalCost: number;
+}
+
+/**
+ * Represents enabled plugins and MCP servers information
+ */
+export interface PluginsMCPsInfo {
+  /** List of enabled plugin names */
+  plugins: string[];
+  /** List of enabled MCP server names */
+  mcps: string[];
 }
 
 /**
