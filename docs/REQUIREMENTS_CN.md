@@ -141,10 +141,19 @@ OpenCode 插件（TypeScript/JavaScript）
 
 **提取优先级**：
 1. 从累积的文本内容中获取第一行有意义的内容
-2. 从 info 元数据字段中尝试（task、description、name 等）
-3. 从 AI 响应内容结构中提取
-4. 从助手的回复内容中获取第一段
-5. 跳过通用模型名称和格式前缀
+2. 从 thinking/reasoning 内容的最后几行（通常包含摘要）
+3. 从 info 元数据字段中尝试（task、description、name 等）
+4. 从 AI 响应内容结构中提取
+5. 从助手的回复内容中获取第一段
+6. 从 thinking/reasoning 内容中任意位置提取
+7. 如果以上都失败则跳过
+
+**Thinking 内容处理**：
+- `message.part.updated` 事件中 type 为 'thinking' 或 'reasoning' 的内容单独收集
+- 这些内容存储在 `step-thinking-<stepNumber>` 键下
+- 提取任务描述时，如果文本内容没有有意义的行，则回退到 thinking 内容
+- 首先检查 thinking 内容的最后 5 行（通常包含摘要）
+- 如果仍然没有匹配，扫描所有 thinking 行以找到第一个有意义的内容
 
 **文本清理**：
 - 移除尾部标点符号（`;:,.!?`）
@@ -152,7 +161,8 @@ OpenCode 插件（TypeScript/JavaScript）
 - 跳过通用模式：`unknown`、`opencode/`、`claude-`、`gpt-`、代码块标记等
 
 **数据来源**：
-- 通过 `message.part.updated` 事件累积文本内容
+- 通过 `message.part.updated` 事件累积的文本内容（type='text'）
+- 通过 `message.part.updated` 事件累积的 thinking 内容（type='thinking' 或 'reasoning'）
 - 按消息 ID 存储在 `messageTexts` Map 中
 
 #### F8: 计费系统
@@ -188,7 +198,7 @@ OpenCode 插件（TypeScript/JavaScript）
 ```
 
 #### F9: 保存完整对话日志
-**描述**：可选地将完整的对话日志（包括所有用户输入和助手输出）保存到单独的文件中。
+**描述**：可选地将完整的对话日志（包括所有用户输入、thinking 内容和助手输出）保存到单独的文件中。
 
 **触发条件**：当配置中 `saveAllLogs: true`
 
@@ -196,7 +206,10 @@ OpenCode 插件（TypeScript/JavaScript）
 
 **捕获的数据**：
 - 所有用户输入（不仅仅是第一个提示词）
-- 所有助手输出（完整内容，不仅仅是步骤元数据）
+- 所有助手输出包括：
+  - Thinking/reasoning 内容（type='thinking' 或 'reasoning'）
+  - 常规文本输出（type='text'）
+  - 任何其他内容类型
 - 每个用户输入和助手输出的时间戳
 - 会话开始和结束时间
 
@@ -210,33 +223,28 @@ OpenCode 插件（TypeScript/JavaScript）
 ---
 
 ### User Input #1 — 10:30:15
+
+```
 [完整用户提示词]
+```
 
 ---
 
 ### Assistant Output #1 — 10:30:20
-[完整助手回复]
 
----
-
-### User Input #2 — 10:31:00
-[第二个用户提示词]
-
----
-
-### Assistant Output #2 — 10:31:30
-[第二个助手回复]
+```
+[先显示 thinking 内容，然后是常规输出]
+```
 
 ---
 ```
 
 **实现说明**：
 - 用户输入在 `chat.message` 钩子期间收集
-- 助手输出在 `message.part.updated` 事件期间收集
+- 助手输出通过 `message.part.updated` 事件收集（所有内容类型）
+- Thinking 内容按时间顺序添加到输出前面
 - 文件在 session.idle 触发时写入一次
-- 不需要 Token 可用性检查（在流式传输时捕获文本）
-
----
+- 内容用代码块包装便于复制粘贴
 
 ### 2.2 用户交互和钩子
 

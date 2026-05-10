@@ -187,7 +187,7 @@ function extractAgentFromInfo(info: any): string {
  * 4. First line from AI response content (final fallback)
  * 5. First segment of assistant's reply content (if all above fail)
  */
-function extractTaskDescription(text: string, info?: any): string {
+function extractTaskDescription(text: string, info?: any, thinkingText?: string): string {
   // Priority 1: Try to get from accumulated text (first meaningful line)
   if (text) {
     const firstLine = text.split('\n').find((line) => line.trim().length > 0) || '';
@@ -195,15 +195,21 @@ function extractTaskDescription(text: string, info?: any): string {
     if (cleaned) return cleaned;
   }
 
-  // Priority 2: Try info metadata fields
+  // Priority 2: Try thinking/reasoning content as fallback (often has meaningful summary at end)
+  if (thinkingText) {
+    const thinkingCleaned = extractMeaningfulLineFromThinking(thinkingText);
+    if (thinkingCleaned) return thinkingCleaned;
+  }
+
+  // Priority 3: Try info metadata fields
   const fromInfo = extractTaskFromInfo(info);
   if (fromInfo) return fromInfo;
 
-  // Priority 3: Try to extract from AI response content structure
+  // Priority 4: Try to extract from AI response content structure
   const fromContent = extractTaskFromContent(info);
   if (fromContent) return fromContent;
 
-  // Priority 4: Final fallback - use first line from raw text
+  // Priority 5: Final fallback - use first line from raw text
   if (text) {
     const lines = text.split('\n').filter((line) => line.trim().length > 0);
     if (lines.length > 0) {
@@ -219,9 +225,51 @@ function extractTaskDescription(text: string, info?: any): string {
     }
   }
 
-  // Priority 5: Use first segment of assistant's reply as task
+  // Priority 6: Use first segment of assistant's reply as task
   const fromReply = extractFirstSegmentFromReply(info);
   if (fromReply) return fromReply;
+
+  // Priority 7: Extract from thinking content at any position
+  if (thinkingText) {
+    const lines = thinkingText.split('\n').filter((line) => line.trim().length > 0);
+    for (const line of lines) {
+      const cleaned = cleanTaskText(line);
+      if (cleaned && cleaned.length > 5 && !isGenericModelName(cleaned)) {
+        const skipPrefixes = ['```', '-----', '===', '---', 'Step', 'Agent:', 'Model:'];
+        const isMeaningful = !skipPrefixes.some((prefix) =>
+          cleaned.toLowerCase().startsWith(prefix.toLowerCase())
+        );
+        if (isMeaningful) return cleaned;
+      }
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Extracts a meaningful line from thinking/reasoning content
+ * Typically thinking content ends with a summary/conclusion
+ */
+function extractMeaningfulLineFromThinking(thinkingText: string): string {
+  if (!thinkingText) return '';
+
+  // Try last few lines of thinking content (often contains summary)
+  const lines = thinkingText.split('\n').filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return '';
+
+  // Check last 5 lines for a meaningful summary
+  const lastLines = lines.slice(-5);
+  for (const line of lastLines) {
+    const cleaned = cleanTaskText(line);
+    if (cleaned && cleaned.length > 5 && !isGenericModelName(cleaned)) {
+      const skipPrefixes = ['```', '-----', '===', '---', 'Step', 'Agent:', 'Model:'];
+      const isMeaningful = !skipPrefixes.some((prefix) =>
+        cleaned.toLowerCase().startsWith(prefix.toLowerCase())
+      );
+      if (isMeaningful) return cleaned;
+    }
+  }
 
   return '';
 }
@@ -709,7 +757,7 @@ export const PromptRecorderPlugin = async ({
         // Collect text content from message.part.updated for task descriptions
         if (event.type === 'message.part.updated') {
           const part = event.properties?.part;
-          if (!part || part.type !== 'text' || !part.text) return;
+          if (!part || !part.text) return;
 
           const sessionID = part.sessionID;
           if (!sessionID) return;
@@ -717,12 +765,27 @@ export const PromptRecorderPlugin = async ({
           const state = sessionStates.get(sessionID);
           if (!state) return;
 
-          // Collect for task description (existing behavior)
-          const key = `step-${state.stepCount + 1}`;
-          const existing = state.messageTexts.get(key) || '';
-          state.messageTexts.set(key, existing + part.text);
+          const partType = part.type || 'text';
 
-          // Collect for all-logs feature
+          // Collect for task description (existing behavior)
+          // For text type: use first line for task description
+          // For thinking/reasoning type: collect but mark separately
+          const key = `step-${state.stepCount + 1}`;
+          const thinkingKey = `step-thinking-${state.stepCount + 1}`;
+
+          if (partType === 'text') {
+            const existing = state.messageTexts.get(key) || '';
+            state.messageTexts.set(key, existing + part.text);
+          } else if (partType === 'thinking' || partType === 'reasoning') {
+            const existing = state.messageTexts.get(thinkingKey) || '';
+            state.messageTexts.set(thinkingKey, existing + part.text);
+          } else {
+            // Unknown type - collect as text anyway
+            const existing = state.messageTexts.get(key) || '';
+            state.messageTexts.set(key, existing + part.text);
+          }
+
+          // Collect for all-logs feature (include ALL content types)
           if (config.saveAllLogs) {
             const assistantKey = `all-assistant-${state.stepCount + 1}`;
             const existingAssistant = state.messageTexts.get(assistantKey) || '';
@@ -796,20 +859,32 @@ export const PromptRecorderPlugin = async ({
         // Get task description from accumulated text using step number as key
         // Key matches: message.part.updated stores at `step-${stepCount + 1}` before increment
         const key = `step-${stepNumber}`;
+        const thinkingKey = `step-thinking-${stepNumber}`;
         const combinedText = state.messageTexts.get(key) || '';
-        const taskDescription = extractTaskDescription(combinedText, info);
+        const thinkingText = state.messageTexts.get(thinkingKey) || '';
+        const taskDescription = extractTaskDescription(combinedText, info, thinkingText);
         // Clean up text buffer after retrieval
         state.messageTexts.delete(key);
+        state.messageTexts.delete(thinkingKey);
 
         // Move accumulated assistant text to all-logs arrays for all-logs feature
         if (config.saveAllLogs) {
           const assistantKey = `all-assistant-${stepNumber}`;
-          const assistantText = state.messageTexts.get(assistantKey) || '';
+          const thinkingKey = `all-thinking-${stepNumber}`;
+          let assistantText = state.messageTexts.get(assistantKey) || '';
+          const thinkingText = state.messageTexts.get(thinkingKey) || '';
+
+          // Combine thinking content with regular output
+          if (thinkingText) {
+            assistantText = thinkingText + assistantText;
+          }
+
           if (assistantText.trim()) {
             state.allAssistantOutputs.push(assistantText);
             state.allAssistantOutputTimes.push(stepTime);
           }
           state.messageTexts.delete(assistantKey);
+          state.messageTexts.delete(thinkingKey);
         }
 
         // Write step log immediately

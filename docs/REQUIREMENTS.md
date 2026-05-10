@@ -141,10 +141,19 @@ An OpenCode plugin that automatically records each conversation's prompt, model,
 
 **Extraction Priority**:
 1. First meaningful line from accumulated text content
-2. Info metadata fields (task, description, name, etc.)
-3. AI response content structure
-4. First segment of assistant's reply content
-5. Skip generic model names and format prefixes
+2. Last few lines from thinking/reasoning content (often contains summary)
+3. Info metadata fields (task, description, name, etc.)
+4. AI response content structure
+5. First segment of assistant's reply content
+6. Any line from thinking/reasoning content
+7. Skip if all above fail
+
+**Thinking Content Handling**:
+- `message.part.updated` events with type 'thinking' or 'reasoning' are collected separately
+- These are stored under `step-thinking-<stepNumber>` key
+- When extracting task description, if text content has no meaningful line, fallback to thinking content
+- Last 5 lines of thinking content are checked first (often contains summary)
+- If still no match, scan all thinking lines for first meaningful content
 
 **Text Cleaning**:
 - Remove trailing punctuation (`;:,.!?`)
@@ -152,7 +161,8 @@ An OpenCode plugin that automatically records each conversation's prompt, model,
 - Skip generic patterns: `unknown`, `opencode/`, `claude-`, `gpt-`, code block markers, etc.
 
 **Data Source**:
-- Text accumulated via `message.part.updated` events
+- Text accumulated via `message.part.updated` events (type='text')
+- Thinking content accumulated via `message.part.updated` events (type='thinking' or 'reasoning')
 - Stored by message ID in `messageTexts` Map
 
 #### F8: Billing System
@@ -188,7 +198,7 @@ An OpenCode plugin that automatically records each conversation's prompt, model,
 ```
 
 #### F9: Save All Conversation Logs
-**Description**: Optionally save complete conversation logs including all user inputs and assistant outputs to a separate file.
+**Description**: Optionally save complete conversation logs including all user inputs, thinking content, and assistant outputs to a separate file.
 
 **Trigger**: When `saveAllLogs: true` in config
 
@@ -196,7 +206,10 @@ An OpenCode plugin that automatically records each conversation's prompt, model,
 
 **Data Captured**:
 - All user inputs (not just the first prompt)
-- All assistant outputs (full content, not just step metadata)
+- All assistant outputs including:
+  - Thinking/reasoning content (type='thinking' or 'reasoning')
+  - Regular text output (type='text')
+  - Any other content types
 - Timestamps for each user input and assistant output
 - Session start and end times
 
@@ -210,31 +223,28 @@ An OpenCode plugin that automatically records each conversation's prompt, model,
 ---
 
 ### User Input #1 — 10:30:15
+
+```
 [Full user prompt]
+```
 
 ---
 
 ### Assistant Output #1 — 10:30:20
-[Full assistant response]
 
----
-
-### User Input #2 — 10:31:00
-[Second user prompt]
-
----
-
-### Assistant Output #2 — 10:31:30
-[Second assistant response]
+```
+[Thinking content first, then regular output]
+```
 
 ---
 ```
 
 **Implementation Notes**:
 - User inputs collected during `chat.message` hook
-- Assistant outputs collected during `message.part.updated` events
+- Assistant outputs collected via `message.part.updated` events (ALL content types)
+- Thinking content prepended to output in chronological order
 - File written once when session.idle fires
-- Does not require token availability check (captures text as it streams)
+- Content wrapped in code blocks for easy copy/paste
 
 ---
 

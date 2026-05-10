@@ -251,19 +251,25 @@ function formatAllLogsEntry(data: AllLogsData): string {
 
     if (userInput) {
       lines.push(`### User Input #${i + 1}${userTime ? ` — ${userTime}` : ''}`);
+      lines.push('');
+      lines.push('```');
       lines.push(userInput);
+      lines.push('```');
       lines.push('');
       lines.push('---');
       lines.push('');
     }
 
-    // Assistant output
+    // Assistant output (includes thinking + response)
     const assistantOutput = data.assistantOutputs[i];
     const assistantTime = data.assistantOutputTimes[i] || '';
 
     if (assistantOutput) {
       lines.push(`### Assistant Output #${i + 1}${assistantTime ? ` — ${assistantTime}` : ''}`);
+      lines.push('');
+      lines.push('```');
       lines.push(assistantOutput);
+      lines.push('```');
       lines.push('');
       lines.push('---');
       lines.push('');
