@@ -14,6 +14,7 @@ const DEFAULT_CONFIG: PromptRecorderConfig = {
     enabled: false,
     models: [],
   },
+  saveAllLogs: false,
 };
 
 /**
@@ -53,6 +54,7 @@ export async function loadConfig(directory: string): Promise<PromptRecorderConfi
         enabled: rawConfig.billing?.enabled ?? DEFAULT_CONFIG.billing.enabled,
         models: rawConfig.billing?.models ?? DEFAULT_CONFIG.billing.models,
       },
+      saveAllLogs: rawConfig.saveAllLogs ?? DEFAULT_CONFIG.saveAllLogs,
     };
 
     await logInfo('Config loaded', {

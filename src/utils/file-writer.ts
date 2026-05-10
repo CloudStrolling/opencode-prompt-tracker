@@ -8,7 +8,7 @@
  * 2. Summary log — written when the entire session goes idle
  */
 
-import type { LogData, MessageStep, SessionState, PluginsMCPsInfo } from '../types';
+import type { LogData, MessageStep, SessionState, AllLogsData } from '../types';
 import { logInfo, logError } from './logger';
 import { formatCostLine } from './billing';
 
@@ -16,27 +16,6 @@ import { formatCostLine } from './billing';
 const FILE_HEADER = `# Prompt-Tracker
 
 `;
-
-/**
- * Formats plugins and MCPs info into Markdown format
- */
-function formatPluginsMCPs(info: PluginsMCPsInfo): string {
-  const lines: string[] = [];
-
-  if (info.plugins.length > 0) {
-    lines.push(`### Plugins`);
-    lines.push(info.plugins.map((p) => `- ${p}`).join('\n'));
-    lines.push('');
-  }
-
-  if (info.mcps.length > 0) {
-    lines.push(`### MCPs`);
-    lines.push(info.mcps.map((m) => `- ${m}`).join('\n'));
-    lines.push('');
-  }
-
-  return lines.join('\n');
-}
 
 /**
  * Formats a single step entry into Markdown format
@@ -67,7 +46,7 @@ function formatSummaryEntry(data: LogData): string {
 
   return `---
 
-### Summary — ${data.time}
+### Summary — From ${data.time} To ${data.endTime}
 - **Model**: ${data.model}
 - **Agent Chain**: ${data.agentChain}
 - **Total Duration**: ${data.duration}s
@@ -140,7 +119,6 @@ export async function appendStepToPromptRecorder(
   step: MessageStep,
   isFirstStep: boolean,
   prompt: string,
-  pluginsMCPs: PluginsMCPsInfo,
   outputPath: string,
   filePrefix: string
 ): Promise<void> {
@@ -154,11 +132,10 @@ export async function appendStepToPromptRecorder(
   );
   const entry = formatStepEntry(step);
 
-  // On first step, prepend plugins/MCPs info and prompt section after header
+  // On first step, prepend prompt section after header
   let prependSection = '';
   if (isFirstStep) {
-    const pluginsMCPSection = formatPluginsMCPs(pluginsMCPs);
-    prependSection = pluginsMCPSection + `## Prompt\n${prompt}\n\n`;
+    prependSection = `## Prompt\n${prompt}\n\n`;
   }
 
   try {
@@ -244,6 +221,97 @@ export async function appendToPromptRecorder(
     });
   } catch (error) {
     await logError('Failed to write summary log', { file: fileName, error: String(error) });
-    throw error;
+  }
+}
+
+/**
+ * Formats the complete all-logs file content
+ * Written once when session.idle fires
+ */
+function formatAllLogsEntry(data: AllLogsData): string {
+  const lines: string[] = [
+    '# All Logs',
+    '',
+    `## Session: ${data.sessionID}`,
+    `**Start:** ${data.startTime} | **End:** ${data.endTime}`,
+    '',
+    '---',
+    '',
+  ];
+
+  const maxCount = Math.max(
+    data.userInputs.length,
+    data.assistantOutputs.length
+  );
+
+  for (let i = 0; i < maxCount; i++) {
+    // User input
+    const userInput = data.userInputs[i];
+    const userTime = data.userInputTimes[i] || '';
+
+    if (userInput) {
+      lines.push(`### User Input #${i + 1}${userTime ? ` — ${userTime}` : ''}`);
+      lines.push(userInput);
+      lines.push('');
+      lines.push('---');
+      lines.push('');
+    }
+
+    // Assistant output
+    const assistantOutput = data.assistantOutputs[i];
+    const assistantTime = data.assistantOutputTimes[i] || '';
+
+    if (assistantOutput) {
+      lines.push(`### Assistant Output #${i + 1}${assistantTime ? ` — ${assistantTime}` : ''}`);
+      lines.push(assistantOutput);
+      lines.push('');
+      lines.push('---');
+      lines.push('');
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Writes the complete all-logs file capturing full conversation
+ * Called once when session.idle fires if saveAllLogs is enabled
+ */
+export async function appendAllLogsToPromptRecorder(
+  directory: string,
+  sessionID: string,
+  sessionStartTime: string,
+  data: AllLogsData,
+  outputPath: string
+): Promise<void> {
+  const dateStr = sessionStartTime.substring(0, 10);
+  const logPrefix = 'opencode-prompt-log-';
+  const fileName = `${logPrefix}${dateStr}_${sessionID}.md`;
+  const promptsDir = `${directory}/${outputPath}`;
+  const filePath = `${promptsDir}/${fileName}`;
+
+  const content = formatAllLogsEntry(data);
+
+  try {
+    await ensureDirectory(promptsDir);
+
+    if (typeof Bun !== 'undefined') {
+      await Bun.write(filePath, content);
+    } else {
+      const fs = await import('fs');
+      if (!fs.existsSync(promptsDir)) {
+        fs.mkdirSync(promptsDir, { recursive: true });
+      }
+      fs.writeFileSync(filePath, content, 'utf8');
+    }
+
+    await logInfo('Logged all conversation', {
+      file: fileName,
+      sessionID,
+      userInputCount: data.userInputs.length,
+      assistantOutputCount: data.assistantOutputs.length,
+    });
+  } catch (error) {
+    await logError('Failed to write all-logs file', { file: fileName, error: String(error) });
   }
 }

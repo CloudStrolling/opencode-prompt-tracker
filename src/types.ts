@@ -77,8 +77,18 @@ export interface SessionState {
   headerWritten: boolean;
   /** Accumulated text content per messageID, collected from message.part.updated events */
   messageTexts: Map<string, string>;
-  /** Enabled plugins and MCP servers information */
-  pluginsMCPs: PluginsMCPsInfo;
+  /** Unix timestamp (ms) when the last step completed, used to calculate individual step duration */
+  lastStepEndTime: number;
+  /** Collected user inputs for all-logs feature */
+  allUserInputs: string[];
+  /** Collected timestamps for user inputs */
+  allUserInputTimes: string[];
+  /** Collected assistant outputs for all-logs feature */
+  allAssistantOutputs: string[];
+  /** Collected timestamps for assistant outputs */
+  allAssistantOutputTimes: string[];
+  /** Log file path for all-logs file (written once on session idle) */
+  allLogsFilePath: string | null;
 }
 
 /**
@@ -117,6 +127,8 @@ export interface PromptRecorderConfig {
   filePrefix: string;
   /** Billing configuration */
   billing: BillingConfig;
+  /** Whether to save all conversation logs (user inputs + assistant outputs) to a separate file */
+  saveAllLogs: boolean;
 }
 
 /**
@@ -134,16 +146,6 @@ export interface CostBreakdown {
 }
 
 /**
- * Represents enabled plugins and MCP servers information
- */
-export interface PluginsMCPsInfo {
-  /** List of enabled plugin names */
-  plugins: string[];
-  /** List of enabled MCP server names */
-  mcps: string[];
-}
-
-/**
  * Represents the summary log entry for a completed session
  * Written when session.idle fires, after all step logs have been written
  */
@@ -152,6 +154,8 @@ export interface LogData {
   sessionID: string;
   /** Formatted time string (HH:MM:SS) when conversation started */
   time: string;
+  /** Formatted time string (HH:MM:SS) when conversation ended */
+  endTime: string;
   /** Agent call chain as arrow-separated string (e.g., 'oracle → build → explore') */
   agentChain: string;
   /** AI model identifier used for this conversation */
@@ -178,4 +182,24 @@ export interface LogData {
   cacheWrite: number;
   /** Optional cost breakdown (present when billing enabled and model matched) */
   costBreakdown?: CostBreakdown;
+}
+
+/**
+ * Data structure for the all-logs file (full conversation capture)
+ */
+export interface AllLogsData {
+  /** Unique session identifier */
+  sessionID: string;
+  /** Formatted time string (HH:MM:SS) when conversation started */
+  startTime: string;
+  /** Formatted time string (HH:MM:SS) when conversation ended */
+  endTime: string;
+  /** Collected user inputs */
+  userInputs: string[];
+  /** Timestamps for user inputs */
+  userInputTimes: string[];
+  /** Collected assistant outputs */
+  assistantOutputs: string[];
+  /** Timestamps for assistant outputs */
+  assistantOutputTimes: string[];
 }

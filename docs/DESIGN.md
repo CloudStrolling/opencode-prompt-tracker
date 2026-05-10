@@ -14,38 +14,48 @@ The plugin follows a modular, event-driven architecture using OpenCode's hook sy
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      PromptRecorderPlugin (Entry Point)                          │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  sessionStates (Map<string, SessionState>)                         │   │
-│  │  - In-memory storage for active sessions                          │   │
-│  │  - Maximum 100 sessions (LRU eviction)                            │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                       │
-│              ┌─────────────────────┼─────────────────────┐               │
-│              │                     │                     │               │
-│              ▼                     ▼                     ▼               │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐       │
-│  │  chat.message    │  │      event       │  │   Utilities      │       │
-│  │    Hook          │  │      Hook         │  │                  │       │
-│  └──────────────────┘  └──────────────────┘  └──────────────────┘       │
-│              │                     │                     │               │
-│              └─────────────────────┼─────────────────────┘               │
-│                                    ▼                                       │
+│                      PromptRecorderPlugin (Entry Point)                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐     │
+│  │  sessionStates (Map<string, SessionState>)                         │     │
+│  │  - In-memory storage for active sessions                          │     │
+│  │  - Maximum 100 sessions (LRU eviction)                            │     │
+│  │  - Stores prompt, model, agentChain, accumulated tokens           │     │
+│  │  - messageTexts Map for task description collection              │     │
+│  └─────────────────────────────────────────────────────────────────────┘     │
+│                                    │                                        │
+│              ┌─────────────────────┼─────────────────────┐                │
+│              │                     │                     │                │
+│              ▼                     ▼                     ▼                │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐        │
+│  │  chat.message    │  │      event       │  │   Utilities      │        │
+│  │    Hook          │  │      Hook         │  │                  │        │
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘        │
+│              │                     │                     │                │
+│              └─────────────────────┼─────────────────────┘                │
+│                                    ▼                                        │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                       Utility Modules                                │   │
 │  │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐     │   │
-│  │  │  file-writer.ts  │ │agent-extractor.ts│ │   logger.ts     │     │   │
+│  │  │  file-writer.ts  │ │  config.ts      │ │   billing.ts   │     │   │
 │  │  │                  │ │                  │ │                 │     │   │
-│  │  │  - Markdown I/O  │ │ - Agent chain    │ │ - Client logging│     │   │
-│  │  │  - File path     │ │   extraction     │ │ - Fallback file │     │   │
-│  │  │  - Directory mgmt│ │ - Parts parsing │ │                 │     │   │
+│  │  │  - Markdown I/O  │ │  - Config loader│ │  - Cost calc    │     │   │
+│  │  │  - Step + Summary│ │  - Defaults     │ │  - Model pricing│     │   │
+│  │  │  - Directory mgmt│ │  - JSON parse   │ │  - Format output│     │   │
 │  │  └─────────────────┘ └─────────────────┘ └─────────────────┘     │   │
+│  │  ┌─────────────────┐ ┌─────────────────┐                           │   │
+│  │  │agent-extractor.ts│ │   logger.ts     │                           │   │
+│  │  │                  │ │                 │                           │   │
+│  │  │ - Agent chain    │ │ - Client logging│                           │   │
+│  │  │   extraction     │ │ - Fallback file │                           │   │
+│  │  │ - Parts parsing │ │                 │                           │   │
+│  │  └─────────────────┘ └─────────────────┘                           │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    │                                       │
-│                                    ▼                                       │
+│                                    │                                        │
+│                                    ▼                                        │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                    Output: Markdown Files                           │   │
-│  │  <project>/.opencode/prompts/opencode-prompt-YYYY-MM-DD_<session>.md│   │
+│  │  <project>/.opencode/prompts/opencode-prompt-YYYY-MM-DD_<session>.md│  │
+│  │  (configurable via opencode-prompt-tracker.config.json)            │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -54,9 +64,11 @@ The plugin follows a modular, event-driven architecture using OpenCode's hook sy
 
 | Module | Responsibility | Public API |
 |--------|----------------|------------|
-| `index.ts` | Main plugin entry, hook handlers, session state management | `PromptRecorderPlugin()` |
+| `index.ts` | Main plugin entry, hook handlers, session state management, task extraction | `PromptRecorderPlugin()` |
 | `types.ts` | TypeScript interfaces for all data structures | Export interfaces |
 | `file-writer.ts` | Markdown file I/O, step and summary logging | `appendStepToPromptRecorder()`, `appendToPromptRecorder()` |
+| `config.ts` | Load config file with defaults | `loadConfig()`, `getDefaultConfig()` |
+| `billing.ts` | Token cost calculation based on model pricing | `calculateStepCost()`, `formatCostLine()`, `findModelPricing()` |
 | `agent-extractor.ts` | Parse message parts for agent information | `extractAgentChain()` |
 | `logger.ts` | Logging abstraction with fallback | `initLogger()`, `logInfo()`, `logError()` |
 
@@ -69,14 +81,14 @@ The plugin follows a modular, event-driven architecture using OpenCode's hook sy
 **Purpose**: Plugin factory function that initializes the plugin and returns hook handlers.
 
 **Key Responsibilities**:
-1. Initialize logger with client and directory
+1. Initialize logger and config loader
 2. Manage session state lifecycle (create, update, cleanup)
 3. Handle chat.message hook (session initialization)
-4. Handle event hook (step logging, summary writing)
-5. Coordinate between hooks for complete workflow
+4. Handle event hook (text collection, step logging, summary writing)
+5. Extract task descriptions from accumulated message text
+6. Coordinate between hooks for complete workflow
 
 **Core Functions**:
-
 ```typescript
 // Main plugin factory
 PromptRecorderPlugin({
@@ -87,6 +99,13 @@ PromptRecorderPlugin({
   event: ({ event }: { event: any }) => Promise<void>
 }>
 ```
+
+**Key Extraction Functions** (in index.ts):
+- `extractPromptFromParts()` - Extract user prompt from message parts
+- `extractModelFromInput()` - Extract model identifier from input context
+- `extractTokens()` - Extract token counts (primary and legacy formats)
+- `extractAgentFromInfo()` - Extract agent name with 5-level priority fallback
+- `extractTaskDescription()` - Extract brief task description with 5 fallback chains
 
 **Session State Lifecycle**:
 ```
@@ -99,16 +118,22 @@ Create SessionState with initial data
 Store in sessionStates Map
     │
     ▼
+message.part.updated (accumulate text for task descriptions)
+    │
+    ▼
 message.updated (assistant completes)
     │
     ▼
-Write step log, accumulate tokens
+Write step log, extract task, accumulate tokens
     │
     ▼
-session.idle (session ends)
+session.idle OR session.status (type: idle)
     │
     ▼
-Write summary, cleanup SessionState
+Write summary with totals + optional cost
+    │
+    ▼
+Cleanup SessionState from memory
 ```
 
 ### 2.2 Type Definitions (types.ts)
@@ -116,21 +141,25 @@ Write summary, cleanup SessionState
 **Purpose**: Define all TypeScript interfaces used throughout the plugin.
 
 **Interfaces Defined**:
-1. `MessageStep` - Single assistant message step data
-2. `SessionState` - In-memory session tracking data
-3. `LogData` - Summary data for writing to file
+1. `MessageStep` - Single assistant message step data (includes taskDescription)
+2. `SessionState` - In-memory session tracking with accumulation fields
+3. `LogData` - Summary data for writing to file (includes optional costBreakdown)
+4. `BillingModelConfig` - Model pricing configuration
+5. `BillingConfig` - Billing feature enable/disable + model list
+6. `PromptRecorderConfig` - Main plugin configuration
+7. `CostBreakdown` - Calculated cost breakdown
 
 **Design Rationale**:
 - Separation of in-memory vs. persisted data structures
 - Accumulator fields in SessionState for step aggregation
 - Read-only LogData for clean write operations
+- Optional costBreakdown for conditional billing display
 
 ### 2.3 File Writer (file-writer.ts)
 
 **Purpose**: Handle all Markdown file I/O operations.
 
 **Key Functions**:
-
 ```typescript
 // Write step entry (called per assistant message)
 appendStepToPromptRecorder(
@@ -139,44 +168,50 @@ appendStepToPromptRecorder(
   sessionStartTime: string,
   step: MessageStep,
   isFirstStep: boolean,
-  prompt: string
+  prompt: string,
+  outputPath: string,
+  filePrefix: string
 ): Promise<void>
 
 // Write summary entry (called once per session)
 appendToPromptRecorder(
   directory: string,
   data: LogData,
-  sessionState: SessionState
+  sessionState: SessionState,
+  outputPath: string,
+  filePrefix: string
 ): Promise<void>
 ```
 
 **File Format Design**:
-```
-# Prompt Recorder - Session
+```markdown
+# Prompt-Tracker
 
-### Prompt
+## Prompt
 <user's original prompt>
 
 ### Step 1 — 10:30:15
 - **Agent**: oracle
 - **Model**: opencode/hy3-preview-free
 - **Duration**: 12.34s
-- **Input Tokens**: 150
-- **Output Tokens**: 800
-- **Cache Read**: 0
-- **Cache Write**: 0
+- **Total Tokens**: 950 (input: 150, output: 800)
+- **Cached Tokens**: 100 (read: 0, write: 100)
+- **Uncached Tokens**: 50
+- **Task**: Analyze the authentication module structure
 
 ---
 
-## Summary — 10:30:15
+### Summary — 10:30:15
 - **Model**: opencode/hy3-preview-free
 - **Agent Chain**: oracle → build
 - **Total Duration**: 12.34s
 - **Steps**: 1
-- **Total Input Tokens**: 150
-- **Total Output Tokens**: 800
-- **Total Cache Read**: 0
-- **Total Cache Write**: 0
+- **Total Tokens**: 950 (input: 150, output: 800)
+- **Cached Tokens**: 100 (read: 0, write: 100)
+- **Uncached Tokens**: 50
+- **Cost**: $0.0123 (input: $0.005, output: $0.007, cache: $0.0003)
+
+---
 ```
 
 **Runtime Abstraction**:
@@ -185,7 +220,66 @@ appendToPromptRecorder(
 - Node.js: Use `fs` module
 - Both support async operations
 
-### 2.4 Agent Extractor (agent-extractor.ts)
+### 2.4 Config Loader (config.ts)
+
+**Purpose**: Load and merge configuration with defaults.
+
+**Config File**: `opencode-prompt-tracker.config.json` (in project root)
+
+**Default Configuration**:
+```typescript
+{
+  outputPath: '.opencode/prompts',
+  filePrefix: 'opencode-prompt-',
+  billing: {
+    enabled: false,
+    models: []
+  }
+}
+```
+
+**Key Functions**:
+```typescript
+loadConfig(directory: string): Promise<PromptRecorderConfig>
+getDefaultConfig(): PromptRecorderConfig
+```
+
+**Design Rationale**:
+- Graceful fallback to defaults if config file missing or invalid
+- Supports custom output directory and file naming
+- Billing is opt-in (disabled by default)
+
+### 2.5 Billing Calculator (billing.ts)
+
+**Purpose**: Calculate token costs based on configured model pricing.
+
+**Pricing Structure** (price per 1M tokens):
+```typescript
+interface BillingModelConfig {
+  model: string;       // Full model name (e.g., 'opencode/sonnet-4')
+  input: number;       // Price per 1M input tokens (uncached)
+  output: number;      // Price per 1M output tokens
+  cacheRead: number;   // Price per 1M cache read tokens
+  cacheWrite: number;  // Price per 1M cache write tokens
+}
+```
+
+**Cost Calculation Formula**:
+```
+inputCost = (inputTokens - cacheRead - cacheWrite) / 1M * pricing.input
+outputCost = outputTokens / 1M * pricing.output
+cacheCost = (cacheRead / 1M * pricing.cacheRead) + (cacheWrite / 1M * pricing.cacheWrite)
+totalCost = inputCost + outputCost + cacheCost
+```
+
+**Key Functions**:
+```typescript
+calculateStepCost(model, inputTokens, outputTokens, cacheRead, cacheWrite, pricing): CostBreakdown | null
+formatCostLine(cost: CostBreakdown): string
+findModelPricing(model: string, models: BillingModelConfig[]): BillingModelConfig | null
+```
+
+### 2.6 Agent Extractor (agent-extractor.ts)
 
 **Purpose**: Extract agent names from OpenCode message parts.
 
@@ -205,7 +299,7 @@ extractAgentChain(parts: any[]): string[]
 - No external dependencies
 - Returns array for easy merging with other sources
 
-### 2.5 Logger (logger.ts)
+### 2.7 Logger (logger.ts)
 
 **Purpose**: Provide logging abstraction with dual output paths.
 
@@ -260,6 +354,16 @@ logError(message: string, extra?: any): Promise<void>
           │ in memory       │                │                         │
           └────────┬────────┘                │                         │
                    │                         │                         │
+                   │                    message.part.updated           │
+                   │◀──────────────────────────────────────────────────│
+                   │                         │                         │
+                   ▼                         │                         │
+          ┌─────────────────┐                │                         │
+          │ Accumulate      │                │                         │
+          │ text content    │                │                         │
+          │ per step        │                │                         │
+          └────────┬────────┘                │                         │
+                   │                         │                         │
                    │                    message.updated                │
                    │◀─────────────────────────────────────────────────│
                    │                         │                         │
@@ -269,31 +373,33 @@ logError(message: string, extra?: any): Promise<void>
           │ - Validate      │                │                         │
           │   completion    │                │                         │
           │ - Extract tokens│                │                         │
+          │ - Extract task  │                │                         │
           │ - Write step    │                │                         │
           │ - Accumulate    │                │                         │
           └────────┬────────┘                │                         │
                    │                         │                         │
-                   │                    session.idle                  │
+                   │                    session.idle OR                │
+                   │                    session.status (idle)         │
                    │◀─────────────────────────────────────────────────│
                    │                         │                         │
                    ▼                         │                         │
           ┌─────────────────┐                │                         │
-          │ Write Summary: │                │                         │
+          │ Write Summary:  │                │                         │
           │ - Calculate    │                │                         │
           │   duration     │                │                         │
           │ - Aggregate    │                │                         │
           │   tokens       │                │                         │
+          │ - Calculate    │                │                         │
+          │   cost (if en) │                │                         │
           │ - Write file   │                │                         │
           │ - Cleanup mem  │                │                         │
           └────────┬────────┘                │                         │
                    │                         │                         │
                    ▼                         │                         │
           ┌─────────────────┐                │                         │
-          │ .opencode/      │                │                         │
-          │ prompts/        │                │                         │
-          │ opencode-prompt │                │                         │
-          │ -YYYY-MM-DD_    │                │                         │
-          │ <session>.md    │                │                         │
+          │ .opencode/       │                │                         │
+          │ prompts/         │                │                         │
+          │ (or custom path) │                │                         │
           └─────────────────┘                │                         │
                                               │                         │
                                               ▼
@@ -311,16 +417,45 @@ Assistant Message Info
         ▼
 ┌───────────────────┐
 │ Has info.tokens? │──Yes──▶ Use primary structure
-└────────┬──────────┘            (input, output, cache)
+└────────┬──────────┘            (input, output, cache, reasoning)
          │ No
          ▼
 ┌───────────────────┐
 │ Has info.usage?   │──Yes──▶ Use legacy structure
-└────────┬──────────┘            (prompt_tokens, completion_tokens)
+└────────┬──────────┘            (prompt_tokens, completion_tokens, cache_*)
          │ No
          ▼
 ┌───────────────────┐
 │ Skip this event   │ (wait for next event with token data)
+└───────────────────┘
+```
+
+### 3.3 Task Description Extraction Flow
+
+```
+message.part.updated (text accumulation)
+        │
+        ▼
+┌───────────────────┐
+│ Append text to   │
+│ messageTexts Map │
+│ Key: step-${n}   │
+└────────┬──────────┘
+         │
+message.updated (step completion)
+         │
+         ▼
+┌───────────────────┐
+│ Extract task desc │
+│ from accumulated │
+│ text + info      │
+│ (5-level fallback)│
+└────────┬──────────┘
+         │
+         ▼
+┌───────────────────┐
+│ Write step with   │
+│ task description  │
 └───────────────────┘
 ```
 
@@ -344,7 +479,30 @@ interface PluginHooks {
 }
 ```
 
-### 4.2 Hook Input/Output Schemas
+### 4.2 Configuration File API
+
+**Config File**: `opencode-prompt-tracker.config.json`
+
+```json
+{
+  "outputPath": ".opencode/prompts",
+  "filePrefix": "opencode-prompt-",
+  "billing": {
+    "enabled": true,
+    "models": [
+      {
+        "model": "opencode/sonnet-4",
+        "input": 3.75,
+        "output": 15.0,
+        "cacheRead": 0.3,
+        "cacheWrite": 3.75
+      }
+    ]
+  }
+}
+```
+
+### 4.3 Hook Input/Output Schemas
 
 #### chat.message Hook
 
@@ -380,14 +538,19 @@ interface PluginHooks {
 **Input (event)**:
 ```typescript
 {
-  type: 'message.updated' | 'session.idle' | 'session.status';
+  type: 'message.part.updated' | 'message.updated' | 'session.idle' | 'session.status';
   properties: {
+    part?: {
+      type: string;
+      text: string;
+      sessionID: string;
+    };
     info?: {
       id: string;
       sessionID: string;
       role: 'assistant';
       time?: { completed: boolean };
-      tokens?: { input, output, context, cache: { read, write } };
+      tokens?: { input, output, context, cache: { read, write }, reasoning };
       usage?: { prompt_tokens, completion_tokens, ... };
       providerID?: string;
       modelID?: string;
@@ -456,69 +619,141 @@ try {
 }
 ```
 
+### 5.5 Task Description Extraction
+
+**Problem**: Assistant response may not contain clear task description in expected format.
+
+**Solution**: 5-level fallback chain:
+1. First meaningful line from accumulated text
+2. Task/description fields from info metadata
+3. Content structure fields from info
+4. First line from AI response content
+5. First segment of assistant's reply content
+
+### 5.6 Agent Name Extraction
+
+**Problem**: Different event types use different fields for agent name.
+
+**Solution**: 5-level priority fallback:
+1. `info.agent` (direct string)
+2. `info.agent.name` (object with name)
+3. `info.name` (some events)
+4. `info.agentInfo.name`
+5. `info.providerID` (filtered)
+6. Parts array (agent/subtask types)
+
 ---
 
-## 6. Security Considerations
+## 6. Configuration Design
 
-### 6.1 Data Privacy
+### 6.1 Configuration File
+
+**Location**: `<project>/opencode-prompt-tracker.config.json`
+
+**Schema**:
+```typescript
+interface PromptRecorderConfig {
+  outputPath: string;      // Relative path from project root
+  filePrefix: string;      // File name prefix
+  billing: BillingConfig;  // Billing feature config
+}
+```
+
+### 6.2 Default Values
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `outputPath` | `.opencode/prompts` | Output directory relative to project root |
+| `filePrefix` | `opencode-prompt-` | File name prefix |
+| `billing.enabled` | `false` | Enable cost calculation |
+| `billing.models` | `[]` | Model pricing config |
+
+### 6.3 Billing Configuration
+
+**Purpose**: Calculate token costs based on model pricing (price per 1M tokens).
+
+**When Enabled**:
+- Summary log includes cost line
+- Only applies if model matches a configured model
+- Falls back gracefully if model not found
+
+---
+
+## 7. Security Considerations
+
+### 7.1 Data Privacy
 - Logs contain user prompts - consider who has access to .opencode/prompts/ directory
 - No sensitive data filtering (user responsibility to sanitize if needed)
 - Local file storage only, no network transmission
 
-### 6.2 File Access
-- Plugin writes to project .opencode/prompts/ subdirectory
+### 7.2 File Access
+- Plugin writes to project .opencode/prompts/ subdirectory (or custom path)
 - No access to files outside the designated log directory
 - Compatible with standard file permission models
 
+### 7.3 Config File Security
+- Config file location is project-scoped (each project has own config)
+- No sensitive information should be stored in config (model pricing is public)
+
 ---
 
-## 7. Performance Optimization
+## 8. Performance Optimization
 
-### 7.1 Async File Operations
+### 8.1 Async File Operations
 - All file I/O is asynchronous (non-blocking)
 - Bun: Native async file API
 - Node.js: async fs methods
 
-### 7.2 String Concatenation
+### 8.2 String Concatenation
 - Pre-allocate content strings where possible
 - Use template literals for formatting
 - Minimal string allocations in hot paths
 
-### 7.3 Memory Efficiency
+### 8.3 Memory Efficiency
 - SessionState uses Set for O(1) membership checks
+- messageTexts Map uses step number as key for text accumulation
 - Maximum 100 sessions hard limit
 - Cleanup on session end prevents memory leaks
 
+### 8.4 Config Caching
+- Config loaded once at plugin initialization
+- Stored in memory for entire plugin lifecycle
+- No repeated file reads
+
 ---
 
-## 8. Testing Strategy
+## 9. Testing Strategy
 
-### 8.1 Unit Tests
+### 9.1 Unit Tests
 - agent-extractor.ts - Agent chain extraction logic
 - file-writer.ts - Markdown formatting (mock fs)
-- Individual function logic
+- billing.ts - Cost calculation accuracy
+- config.ts - Default merging and file loading
 
-### 8.2 Integration Tests
+### 9.2 Integration Tests
 - Full plugin lifecycle (mock OpenCode hooks)
 - File output verification
 - Multiple step handling
+- Config file loading
 
-### 8.3 Manual Testing
+### 9.3 Manual Testing
 - Real OpenCode session capture
 - Log file content verification
 - Edge case exploration
+- Billing calculation verification
 
 ---
 
-## 9. Configuration and Extension Points
+## 10. Configuration and Extension Points
 
-### 9.1 Build Configuration
+### 10.1 Build Configuration
 - TypeScript compilation with strict mode
 - esbuild bundling for distribution
 - Output: ESM format for Bun/Node compatibility
 
-### 9.2 Extension Points (Future)
+### 10.2 Extension Points (Future)
 - Custom log format templates
 - Additional metadata fields
 - Webhook notifications
 - Export format options (JSON, CSV)
+- Database storage backend

@@ -1,83 +1,71 @@
-# AGENTS.md — OpenCode Prompt Tracker
+# PROJECT KNOWLEDGE BASE
+
+**Generated:** 2026-05-09
+**Project:** OpenCode Prompt Tracker Plugin
+
+## OVERVIEW
 
 OpenCode plugin that logs prompts, models, agents, duration, and token usage to daily Markdown files.
 
-## Developer Commands
-
-```bash
-npm run build    # tsc → dist/ + esbuild → dist/release/opencode-prompt-tracker.js
-npm run dev     # Watch mode: tsc --watch
-npm test       # Bun test suite (bun test)
-```
-
-**Build order**: `tsc` compiles to `dist/`, then `esbuild` bundles to `dist/release/`. Always run `build` before local testing.
-
-## Project Structure
+## STRUCTURE
 
 ```
 src/
 ├── index.ts              # Main plugin — PromptRecorderPlugin factory + hooks
-├── types.ts              # TypeScript interfaces (SessionState, MessageStep, LogData, Config)
-└── utils/
-    ├── file-writer.ts   # Writes .md logs to .opencode/prompts/
-    ├── agent-extractor.ts # Parses agent chain from message parts
-    ├── logger.ts        # Plugin logging (client + fallback file)
-    ├── config.ts       # Config loader (opencode-prompt-tracker.config.json)
-    └── billing.ts      # Token cost calculation
+├── types.ts              # TypeScript interfaces
+└── utils/                # Utility modules (see src/utils/AGENTS.md)
 
-tests/
-├── config.test.ts        # Config loading + defaults
-├── billing.test.ts       # Cost calculation
-├── file-writer.test.ts # Markdown formatting
-└── agent-extractor.test.ts # Agent chain extraction
+tests/                    # Bun test suite
+dist/release/             # Built output (esbuild bundle)
 ```
 
-## Key Implementation Details
+## CODE MAP
 
-- **Entry**: `PromptRecorderPlugin({ client, directory })` async factory in `src/index.ts`
-- **Config file** (optional): `<project>/opencode-prompt-tracker.config.json`
-- **Hooks**: `chat.message` → `event.message.updated` → `event.session.idle`
-- **Output**: Markdown files in `<project>/.opencode/prompts/`
+| Symbol | Type | Location |
+|--------|------|----------|
+| `PromptRecorderPlugin` | function | src/index.ts:355 |
+| `SessionState` | interface | src/types.ts:45 |
+| `MessageStep` | interface | src/types.ts:10 |
+| `LogData` | interface | src/types.ts:138 |
+| `appendStepToPromptRecorder` | function | src/utils/file-writer.ts:115 |
+| `loadConfig` | function | src/utils/config.ts:28 |
 
-### Config File Schema
+## HOOKS
 
-```json
-{
-  "outputPath": ".opencode/prompts",
-  "filePrefix": "opencode-prompt-",
-  "billing": {
-    "enabled": false,
-    "models": [
-      { "model": "opencode/sonnet-4", "input": 3.75, "output": 15.0, "cacheRead": 0.3, "cacheWrite": 3.75 }
-    ]
-  }
-}
+| Hook | Purpose |
+|------|---------|
+| `chat.message` | Capture user input, init session state |
+| `event: message.part.updated` | Collect text for task descriptions |
+| `event: message.updated` | Write step log when assistant completes |
+| `event: session.idle` | Write summary with totals |
+
+## COMMANDS
+
+```bash
+npm run build    # tsc → dist/ + esbuild → dist/release/opencode-prompt-tracker.js
+npm run dev      # Watch mode: tsc --watch
+npm test         # Bun test suite (bun test)
+npm publish       # npm version patch && npm run build && npm publish --access public
 ```
 
-## Code Conventions
+## CONVENTIONS (THIS PROJECT)
 
-- **Formatter**: Prettier (`.prettierrc`) — single quotes, semicolons, 2 spaces, 100 char width
+- **Formatter**: Prettier — single quotes, semicolons, 2 spaces, 100 char width
 - **TypeScript**: Strict mode (`tsconfig.json`)
-- **Runtime compatibility**: Both Bun and Node.js — uses `typeof Bun !== 'undefined'` check
+- **Runtime**: Bun + Node.js dual support via `typeof Bun !== 'undefined'`
+- **Build order**: `tsc` → `dist/`, then `esbuild` → `dist/release/`
 
-## Local Testing
+## LOCAL TESTING
 
 ```bash
-# 1. Build plugin
+# Build → Copy → Add to opencode.json
 npm run build
-
-# 2. Copy to test project
-mkdir -p <test-project>/.opencode/plugins/
 cp dist/release/opencode-prompt-tracker.js <test-project>/.opencode/plugins/
-
-# 3. Add to opencode.json:
-{ "plugin": ["opencode-prompt-tracker"] }
+# Then add: { "plugin": ["opencode-prompt-tracker"] } in opencode.json
 ```
 
-## Publishing
+## NOTES
 
-```bash
-npm version patch  # or minor/major
-npm run build
-npm publish --access public
-```
+- Config file: `<project>/opencode-prompt-tracker.config.json` (optional)
+- Output: `<project>/.opencode/prompts/opencode-prompt-YYYY-MM-DD_<sessionID>.md`
+- Session cleanup: auto on idle, max 100 concurrent sessions in memory

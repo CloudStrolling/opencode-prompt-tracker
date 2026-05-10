@@ -18,8 +18,8 @@
  * Output: <project>/.opencode/prompts/opencode-prompt-YYYY-MM-DD_<sessionID>.md
  */
 
-import type { SessionState, LogData, MessageStep, PromptRecorderConfig, PluginsMCPsInfo } from './types';
-import { appendToPromptRecorder, appendStepToPromptRecorder } from './utils/file-writer';
+import type { SessionState, LogData, MessageStep, PromptRecorderConfig, AllLogsData } from './types';
+import { appendToPromptRecorder, appendStepToPromptRecorder, appendAllLogsToPromptRecorder } from './utils/file-writer';
 import { extractAgentChain } from './utils/agent-extractor';
 import { initLogger, logInfo, logError } from './utils/logger';
 import { loadConfig } from './utils/config';
@@ -179,48 +179,13 @@ function extractAgentFromInfo(info: any): string {
 }
 
 /**
- * Extracts enabled plugins and MCP servers from client object
- */
-function extractPluginsAndMCPs(client: any): PluginsMCPsInfo {
-  const result: PluginsMCPsInfo = {
-    plugins: [],
-    mcps: [],
-  };
-
-  // Try to get plugins from client
-  if (client?.plugins) {
-    const plugins = client.plugins;
-    if (Array.isArray(plugins)) {
-      result.plugins = plugins.map((p: any) => p.name || p.id || String(p)).filter(Boolean);
-    } else if (typeof plugins === 'object') {
-      result.plugins = Object.keys(plugins).filter((key) => key !== 'opencode-prompt-tracker');
-    }
-  }
-
-  // Try to get MCPS from client
-  if (client?.mcps) {
-    const mcps = client.mcps;
-    if (Array.isArray(mcps)) {
-      result.mcps = mcps.map((m: any) => m.name || m.id || String(m)).filter(Boolean);
-    } else if (typeof mcps === 'object') {
-      result.mcps = Object.keys(mcps);
-    }
-  }
-
-  // Remove duplicates and filter out self
-  result.plugins = [...new Set(result.plugins)].filter((p) => p !== 'opencode-prompt-tracker');
-  result.mcps = [...new Set(result.mcps)];
-
-  return result;
-}
-
-/**
  * Extracts a brief task description from accumulated message text
  * Fallback chain:
  * 1. First non-empty line from accumulated text
  * 2. Task/description fields from info metadata
  * 3. Content structure fields from info
  * 4. First line from AI response content (final fallback)
+ * 5. First segment of assistant's reply content (if all above fail)
  */
 function extractTaskDescription(text: string, info?: any): string {
   // Priority 1: Try to get from accumulated text (first meaningful line)
@@ -254,7 +219,116 @@ function extractTaskDescription(text: string, info?: any): string {
     }
   }
 
+  // Priority 5: Use first segment of assistant's reply as task
+  const fromReply = extractFirstSegmentFromReply(info);
+  if (fromReply) return fromReply;
+
   return '';
+}
+
+/**
+ * Extracts the first meaningful segment from assistant's reply content
+ * Used when all other task extraction methods fail
+ */
+function extractFirstSegmentFromReply(info: any): string {
+  if (!info) return '';
+
+  // Try various paths where assistant reply content might be stored
+  const contentSources = [
+    // Direct content field
+    info.content,
+    // Message content
+    info.message?.content,
+    // Parts array - look for text parts
+    ...(info.parts || []),
+    // Message parts
+    ...(info.message?.parts || []),
+  ];
+
+  for (const source of contentSources) {
+    if (!source) continue;
+
+    // Handle string content
+    if (typeof source === 'string') {
+      const firstLine = source.split('\n')[0]?.trim();
+      if (firstLine) {
+        const cleaned = cleanTaskText(firstLine);
+        if (cleaned && cleaned.length > 5 && !isGenericModelName(cleaned)) {
+          return cleaned;
+        }
+      }
+      continue;
+    }
+
+    // Handle text parts from parts array
+    if (source.type === 'text' && source.text) {
+      const firstLine = source.text.split('\n')[0]?.trim();
+      if (firstLine) {
+        const cleaned = cleanTaskText(firstLine);
+        if (cleaned && cleaned.length > 5 && !isGenericModelName(cleaned)) {
+          return cleaned;
+        }
+      }
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Debug utility: append all info fields to docs/tmp/infos.md
+ */
+async function debugWriteInfoFields(info: any): Promise<void> {
+  try {
+    const debugDir = 'docs/tmp';
+    const debugFile = `${debugDir}/infos.md`;
+    let content = `--- ${new Date().toISOString()} ---\n\n`;
+
+    // Collect all enumerable keys recursively (up to 3 levels deep)
+    function flatten(obj: any, prefix: string = '', depth: number = 0): string[] {
+      if (depth >= 3 || !obj || typeof obj !== 'object') {
+        const val = typeof obj === 'string' ? obj : JSON.stringify(obj);
+        return [`${prefix} = ${val}`];
+      }
+      const lines: string[] = [];
+      for (const key of Object.keys(obj)) {
+        const fullKey = prefix ? `${prefix}.${key}` : key;
+        const val = obj[key];
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+          lines.push(...flatten(val, fullKey, depth + 1));
+        } else if (Array.isArray(val)) {
+          lines.push(`${fullKey} = [array, length=${val.length}]`);
+        } else {
+          lines.push(`${fullKey} = ${JSON.stringify(val)}`);
+        }
+      }
+      return lines;
+    }
+
+    content += `## Flattened Keys\n\n`;
+    const keys = flatten(info);
+    for (const line of keys) {
+      content += `${line}\n`;
+    }
+
+    content += `\n## Raw JSON\n\n\`\`\`json\n${JSON.stringify(info, null, 2)}\n\`\`\`\n\n`;
+
+    // Ensure directory exists
+    if (typeof Bun !== 'undefined') {
+      await Bun.write(`${debugDir}/.keep`, '', { createPath: true }).catch(() => {});
+      const existing = await Bun.file(debugFile).text().catch(() => '');
+      await Bun.write(debugFile, existing + content);
+    } else {
+      const fs = await import('fs');
+      if (!fs.existsSync(debugDir)) {
+        fs.mkdirSync(debugDir, { recursive: true });
+      }
+      const existing = fs.existsSync(debugFile) ? fs.readFileSync(debugFile, 'utf8') : '';
+      fs.writeFileSync(debugFile, existing + content, 'utf8');
+    }
+  } catch (e) {
+    // Silently fail - never break the plugin
+  }
 }
 
 /**
@@ -273,7 +347,7 @@ function extractTaskFromInfo(info: any): string {
 
   // Try various metadata fields that might contain task info
   const taskFields = [
-    // Direct fields
+    // Direct fieldsz
     info.task,
     info.description,
     info.name,
@@ -397,13 +471,9 @@ export const PromptRecorderPlugin = async ({
 }) => {
   const sessionStates = new Map<string, SessionState>();
   const config: PromptRecorderConfig = await loadConfig(directory);
-  const pluginsMCPsInfo = extractPluginsAndMCPs(client);
 
   initLogger(client, directory);
-  await logInfo('Plugin initialized', {
-    plugins: pluginsMCPsInfo.plugins,
-    mcps: pluginsMCPsInfo.mcps,
-  });
+  await logInfo('Plugin initialized');
 
   /**
    * Writes the summary log for a session and cleans up state.
@@ -428,12 +498,20 @@ export const PromptRecorderPlugin = async ({
       hour12: false,
     });
 
+    const endTimeStr = new Date(endTime).toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+
     const totalCached = state.totalCacheRead + state.totalCacheWrite;
     const totalUncached = Math.max(0, state.totalInputTokens - totalCached);
 
     const logData: LogData = {
       sessionID,
       time,
+      endTime: endTimeStr,
       agentChain: state.agentChain.join(' → ') || 'unknown',
       model: state.lastModel || state.model || 'unknown',
       prompt: state.prompt,
@@ -473,6 +551,27 @@ export const PromptRecorderPlugin = async ({
       config.outputPath,
       config.filePrefix
     );
+
+    // Write all-logs file if saveAllLogs is enabled
+    if (config.saveAllLogs && state.allUserInputs.length > 0) {
+      const allLogsData: AllLogsData = {
+        sessionID,
+        startTime: time,
+        endTime: endTimeStr,
+        userInputs: state.allUserInputs,
+        userInputTimes: state.allUserInputTimes,
+        assistantOutputs: state.allAssistantOutputs,
+        assistantOutputTimes: state.allAssistantOutputTimes,
+      };
+
+      await appendAllLogsToPromptRecorder(
+        directory,
+        sessionID,
+        state.sessionStartTime,
+        allLogsData,
+        config.outputPath
+      );
+    }
 
     sessionStates.delete(sessionID);
     await logInfo('Session summary logged', {
@@ -536,10 +635,28 @@ export const PromptRecorderPlugin = async ({
           stepCount: 0,
           headerWritten: false,
           messageTexts: new Map<string, string>(),
-          pluginsMCPs: pluginsMCPsInfo,
+          lastStepEndTime: Date.now(),
+          allUserInputs: [],
+          allUserInputTimes: [],
+          allAssistantOutputs: [],
+          allAssistantOutputTimes: [],
+          allLogsFilePath: null,
         };
 
         sessionStates.set(sessionID, state);
+
+        // Collect user input for all-logs feature
+        if (config.saveAllLogs && prompt) {
+          state.allUserInputs.push(prompt);
+          const inputTime = new Date().toLocaleTimeString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+          });
+          state.allUserInputTimes.push(inputTime);
+        }
+
         await logInfo('chat.message handled', {
           sessionID,
           promptLength: prompt.length,
@@ -595,17 +712,22 @@ export const PromptRecorderPlugin = async ({
           if (!part || part.type !== 'text' || !part.text) return;
 
           const sessionID = part.sessionID;
-          const messageID = part.messageID;
           if (!sessionID) return;
 
           const state = sessionStates.get(sessionID);
           if (!state) return;
 
-          // Use messageID if available, otherwise use 'first' for the first message
-          const key = messageID || (state.stepCount === 0 ? 'first' : `step-${state.stepCount + 1}`);
-          // Append text to the message's accumulated text buffer
+          // Collect for task description (existing behavior)
+          const key = `step-${state.stepCount + 1}`;
           const existing = state.messageTexts.get(key) || '';
           state.messageTexts.set(key, existing + part.text);
+
+          // Collect for all-logs feature
+          if (config.saveAllLogs) {
+            const assistantKey = `all-assistant-${state.stepCount + 1}`;
+            const existingAssistant = state.messageTexts.get(assistantKey) || '';
+            state.messageTexts.set(assistantKey, existingAssistant + part.text);
+          }
           return;
         }
 
@@ -658,9 +780,9 @@ export const PromptRecorderPlugin = async ({
             ? `${info.providerID}/${info.modelID}`
             : state.lastModel || state.model || 'unknown';
 
-        // Calculate step duration
+        // Calculate step duration (time since last step completed)
         const stepEndTime = Date.now();
-        const stepDurationSec = ((stepEndTime - state.startTime) / 1000).toFixed(2);
+        const stepDurationSec = ((stepEndTime - state.lastStepEndTime) / 1000).toFixed(2);
 
         const stepTime = new Date(stepEndTime).toLocaleTimeString('zh-CN', {
           hour: '2-digit',
@@ -671,21 +793,23 @@ export const PromptRecorderPlugin = async ({
 
         const agentName = extractAgentFromInfo(info);
 
-        // Get task description from accumulated text (with info fallback)
-        const messageText = state.messageTexts.get(messageID || '') || '';
-        // If messageID is undefined/empty, try using step number as key for first message
-        const fallbackText = !messageText && state.stepCount === 1
-          ? state.messageTexts.get('first') || ''
-          : '';
-        const combinedText = messageText || fallbackText;
+        // Get task description from accumulated text using step number as key
+        // Key matches: message.part.updated stores at `step-${stepCount + 1}` before increment
+        const key = `step-${stepNumber}`;
+        const combinedText = state.messageTexts.get(key) || '';
         const taskDescription = extractTaskDescription(combinedText, info);
-        // Clean up text buffer for this message
-        if (messageID) {
-          state.messageTexts.delete(messageID);
-        }
-        // Also clean up fallback key
-        if (!messageID && state.stepCount === 1) {
-          state.messageTexts.delete('first');
+        // Clean up text buffer after retrieval
+        state.messageTexts.delete(key);
+
+        // Move accumulated assistant text to all-logs arrays for all-logs feature
+        if (config.saveAllLogs) {
+          const assistantKey = `all-assistant-${stepNumber}`;
+          const assistantText = state.messageTexts.get(assistantKey) || '';
+          if (assistantText.trim()) {
+            state.allAssistantOutputs.push(assistantText);
+            state.allAssistantOutputTimes.push(stepTime);
+          }
+          state.messageTexts.delete(assistantKey);
         }
 
         // Write step log immediately
@@ -714,7 +838,6 @@ export const PromptRecorderPlugin = async ({
           step,
           isFirstStep,
           state.prompt,
-          state.pluginsMCPs,
           config.outputPath,
           config.filePrefix
         );
@@ -736,6 +859,7 @@ export const PromptRecorderPlugin = async ({
         }
 
         state.hasCompletedMessage = true;
+        state.lastStepEndTime = stepEndTime; // Update for next step's duration calculation
 
         await logInfo('Step logged + tokens accumulated', {
           sessionID,
