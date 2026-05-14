@@ -64,9 +64,9 @@ The plugin follows a modular, event-driven architecture using OpenCode's hook sy
 
 | Module | Responsibility | Public API |
 |--------|----------------|------------|
-| `index.ts` | Main plugin entry, hook handlers, session state management, task extraction | `PromptRecorderPlugin()` |
+| `index.ts` | Main plugin entry, hook handlers, session state management, task extraction, thinking collection | `PromptRecorderPlugin()` |
 | `types.ts` | TypeScript interfaces for all data structures | Export interfaces |
-| `file-writer.ts` | Markdown file I/O, step and summary logging | `appendStepToPromptRecorder()`, `appendToPromptRecorder()` |
+| `file-writer.ts` | Markdown file I/O, step/summary logging, all-logs file | `appendStepToPromptRecorder()`, `appendToPromptRecorder()`, `appendAllLogsToPromptRecorder()` |
 | `config.ts` | Load config file with defaults | `loadConfig()`, `getDefaultConfig()` |
 | `billing.ts` | Token cost calculation based on model pricing | `calculateStepCost()`, `formatCostLine()`, `findModelPricing()` |
 | `agent-extractor.ts` | Parse message parts for agent information | `extractAgentChain()` |
@@ -322,6 +322,73 @@ logError(message: string, extra?: any): Promise<void>
 
 **Error Handling**: Silent failure - logging errors should not break plugin functionality.
 
+### 2.8 All Logs Feature (file-writer.ts + index.ts)
+
+**Purpose**: Capture complete conversation logs including thinking/reasoning content.
+
+**Key Functions**:
+```typescript
+// In file-writer.ts
+formatAllLogsEntry(data: AllLogsData): string
+appendAllLogsToPromptRecorder(directory, sessionID, sessionStartTime, data, outputPath): Promise<void>
+
+// In index.ts - SessionState additions
+allUserInputs: string[]           // Collected user inputs
+allUserInputTimes: string[]        // Timestamps for user inputs
+allAssistantOutputs: string[]       // Collected assistant outputs (with thinking)
+allAssistantOutputTimes: string[]  // Timestamps for assistant outputs
+allLogsFilePath: string | null     // Log file path
+```
+
+**Output Format**:
+```markdown
+# All Logs
+
+## Session: <sessionID>
+**Start:** <time> | **End:** <time>
+
+---
+
+### User Input #1 — 10:30:15
+```
+[user message]
+```
+
+---
+
+### Assistant Output #1 — 10:30:16
+```
+[thinking content]
+[assistant response]
+```
+
+---
+```
+
+**Flow**:
+1. `chat.message` → Collect user input + timestamp
+2. `message.part.updated` (thinking) → Collect to thinking buffer
+3. `message.part.updated` (text) → Collect to response buffer
+4. `message.updated` → Combine thinking + response, store in session
+5. `session.idle` → Write all-logs file (if `saveAllLogs: true`)
+
+### 2.9 Thinking/Reasoning Content Collection (index.ts)
+
+**Purpose**: Extract task descriptions from thinking/reasoning content.
+
+**Key Functions**:
+```typescript
+extractTaskDescription(text, info, thinkingText): string
+extractMeaningfulLineFromThinking(thinkingText): string
+```
+
+**Algorithm**:
+1. Try first non-empty line from accumulated text
+2. Try meaningful line from thinking content (often ends with summary)
+3. Try info metadata fields
+4. Try AI response content structure
+5. Final fallback: Use first segment of assistant's reply
+
 ---
 
 ## 3. Data Flow Design
@@ -459,9 +526,59 @@ message.updated (step completion)
 └───────────────────┘
 ```
 
----
+### 3.4 All Logs Flow
 
-## 4. API Design
+```
+chat.message (user sends message)
+         │
+         ▼
+Collect user input + timestamp
+         │
+message.part.updated (thinking/reasoning)
+         │
+         ▼
+Accumulate thinking content in separate buffer
+         │
+message.part.updated (text response)
+         │
+         ▼
+Combine thinking + text into complete assistant output
+         │
+         ▼
+Store combined output + timestamp in session
+         │
+session.idle (session ends)
+         │
+         ▼
+Write all-logs file (if saveAllLogs enabled)
+         │
+         ▼
+.opencode/prompts/opencode-prompt-log-YYYY-MM-DD_<sessionID>.md
+```
+
+### 3.5 Thinking Content Flow
+
+```
+message.part.updated (type: 'thinking' or 'reasoning')
+         │
+         ▼
+Key: step-thinking-<n>
+         │
+         ▼
+Accumulate thinking text in messageTexts Map
+         │
+message.updated (step completes)
+         │
+         ▼
+extractTaskDescription(combinedText, info, thinkingText)
+         │
+         ▼
+Try meaningful line from thinking (often last few lines)
+         │
+         ▼
+If found: Use as task description
+If not: Fall back to other extraction methods
+```
 
 ### 4.1 Plugin Factory API
 
@@ -655,6 +772,7 @@ try {
 interface PromptRecorderConfig {
   outputPath: string;      // Relative path from project root
   filePrefix: string;      // File name prefix
+  saveAllLogs: boolean;   // Enable complete conversation logging
   billing: BillingConfig;  // Billing feature config
 }
 ```
@@ -665,6 +783,7 @@ interface PromptRecorderConfig {
 |-------|---------|-------------|
 | `outputPath` | `.opencode/prompts` | Output directory relative to project root |
 | `filePrefix` | `opencode-prompt-` | File name prefix |
+| `saveAllLogs` | `false` | Enable complete conversation capture |
 | `billing.enabled` | `false` | Enable cost calculation |
 | `billing.models` | `[]` | Model pricing config |
 

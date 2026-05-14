@@ -363,7 +363,13 @@ async function debugWriteInfoFields(info: any): Promise<void> {
 
     // Ensure directory exists
     if (typeof Bun !== 'undefined') {
-      await Bun.write(`${debugDir}/.keep`, '', { createPath: true }).catch(() => {});
+      const dirExists = await Bun.file(debugDir).exists().catch(() => false);
+      if (!dirExists) {
+        // Create directory by writing to a placeholder file, then delete it
+        const placeholder = `${debugDir}/.placeholder`;
+        await Bun.write(placeholder, '', { createPath: true }).catch(() => {});
+        await Bun.file(placeholder).delete().catch(() => {});
+      }
       const existing = await Bun.file(debugFile).text().catch(() => '');
       await Bun.write(debugFile, existing + content);
     } else {

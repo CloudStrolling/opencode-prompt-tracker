@@ -67,14 +67,18 @@ function formatSummaryEntry(data: LogData): string {
 async function ensureDirectory(promptsDir: string): Promise<void> {
   if (typeof Bun !== 'undefined') {
     try {
-      await Bun.write(`${promptsDir}/.keep`, '', { createPath: true });
+      // Use spawn to create directory (mkdir -p creates parent dirs too)
+      await Bun.spawn(['mkdir', '-p', promptsDir], { stderr: 'pipe' });
     } catch (e) {
+      // Fallback: try writing to ensure directory exists
       try {
-        await Bun.spawn(['mkdir', '-p', promptsDir], { stderr: 'pipe' });
-      } catch (spawnError) {
+        await Bun.write(`${promptsDir}/.placeholder`, '', { createPath: true });
+        // Delete the placeholder file after directory exists
+        await Bun.file(`${promptsDir}/.placeholder`).delete().catch(() => {});
+      } catch (writeError) {
         await logError('Failed to create directory', {
           dir: promptsDir,
-          error: String(spawnError),
+          error: String(writeError),
         });
       }
     }

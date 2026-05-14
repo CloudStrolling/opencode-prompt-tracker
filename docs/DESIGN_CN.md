@@ -64,9 +64,9 @@
 
 | 模块 | 职责 | 公共 API |
 |------|------|----------|
-| `index.ts` | 主插件入口，钩子处理器，会话状态管理，任务提取 | `PromptRecorderPlugin()` |
+| `index.ts` | 主插件入口，钩子处理器，会话状态管理，任务提取，思维链收集 | `PromptRecorderPlugin()` |
 | `types.ts` | 所有数据结构的 TypeScript 接口 | 导出接口 |
-| `file-writer.ts` | Markdown 文件 I/O，步骤和摘要日志 | `appendStepToPromptRecorder()`, `appendToPromptRecorder()` |
+| `file-writer.ts` | Markdown 文件 I/O，步骤/摘要日志，全量日志文件 | `appendStepToPromptRecorder()`, `appendToPromptRecorder()`, `appendAllLogsToPromptRecorder()` |
 | `config.ts` | 加载配置文件与默认值 | `loadConfig()`, `getDefaultConfig()` |
 | `billing.ts` | 基于模型定价计算 Token 成本 | `calculateStepCost()`, `formatCostLine()`, `findModelPricing()` |
 | `agent-extractor.ts` | 解析消息部分以获取 Agent 信息 | `extractAgentChain()` |
@@ -322,6 +322,73 @@ logError(message: string, extra?: any): Promise<void>
 
 **错误处理**：静默失败 - 日志错误不应破坏插件功能。
 
+### 2.8 全量日志功能（file-writer.ts + index.ts）
+
+**目的**：捕获包含思维链/推理内容的完整对话日志。
+
+**关键函数**：
+```typescript
+// 在 file-writer.ts 中
+formatAllLogsEntry(data: AllLogsData): string
+appendAllLogsToPromptRecorder(directory, sessionID, sessionStartTime, data, outputPath): Promise<void>
+
+// 在 index.ts 中 - SessionState 扩展
+allUserInputs: string[]           // 收集的用户输入
+allUserInputTimes: string[]        // 用户输入时间戳
+allAssistantOutputs: string[]      // 收集的助手输出（包含思维内容）
+allAssistantOutputTimes: string[] // 助手输出时间戳
+allLogsFilePath: string | null      // 全量日志文件路径
+```
+
+**输出格式**：
+```markdown
+# All Logs
+
+## Session: <sessionID>
+**Start:** <time> | **End:** <time>
+
+---
+
+### User Input #1 — 10:30:15
+```
+[用户消息]
+```
+
+---
+
+### Assistant Output #1 — 10:30:16
+```
+[思维内容]
+[助手响应]
+```
+
+---
+```
+
+**流程**：
+1. `chat.message` → 收集用户输入 + 时间戳
+2. `message.part.updated` (thinking) → 收集到思维缓冲区
+3. `message.part.updated` (text) → 收集到响应缓冲区
+4. `message.updated` → 合并思维 + 响应，存储到会话
+5. `session.idle` → 写入全量日志文件（如果 `saveAllLogs: true`）
+
+### 2.9 思维链/推理内容收集（index.ts）
+
+**目的**：从思维链/推理内容中提取任务描述。
+
+**关键函数**：
+```typescript
+extractTaskDescription(text, info, thinkingText): string
+extractMeaningfulLineFromThinking(thinkingText): string
+```
+
+**算法**：
+1. 尝试从累积文本的第一行非空内容
+2. 尝试从思维内容中提取有意义的行（通常在末尾有总结）
+3. 尝试 info 元数据字段
+4. 尝试 AI 响应内容结构
+5. 最终回退：使用助手回复的第一段
+
 ---
 
 ## 3. 数据流程设计
@@ -409,7 +476,7 @@ logError(message: string, extra?: any): Promise<void>
                                     └─────────────────┘
 ```
 
-### 3.2 Token 提取流程
+### 3.7 Token 提取流程
 
 ```
 助手消息信息
@@ -430,7 +497,61 @@ logError(message: string, extra?: any): Promise<void>
 └───────────────────┘
 ```
 
-### 3.3 任务描述提取流程
+### 3.4 全量日志流程
+
+```
+chat.message（用户发送消息）
+         │
+         ▼
+收集用户输入 + 时间戳
+         │
+message.part.updated（thinking/reasoning 思维链）
+         │
+         ▼
+在单独缓冲区累积思维内容
+         │
+message.part.updated（text 响应）
+         │
+         ▼
+将思维 + 文本合并为完整助手输出
+         │
+         ▼
+存储合并输出 + 时间戳到会话
+         │
+session.idle（会话结束）
+         │
+         ▼
+写入全量日志文件（如果 saveAllLogs 启用）
+         │
+         ▼
+.opencode/prompts/opencode-prompt-log-YYYY-MM-DD_<sessionID>.md
+```
+
+### 3.5 思维链内容流程
+
+```
+message.part.updated（type: 'thinking' 或 'reasoning'）
+         │
+         ▼
+键：step-thinking-<n>
+         │
+         ▼
+在 messageTexts Map 中累积思维文本
+         │
+message.updated（步骤完成）
+         │
+         ▼
+extractTaskDescription(combinedText, info, thinkingText)
+         │
+         ▼
+尝试从思维内容中有意义的行（通常是最后几行）
+         │
+         ▼
+如果找到：用作任务描述
+如果未找到：回退到其他提取方法
+```
+
+### 3.6 任务描述提取流程
 
 ```
 message.part.updated（文本累积）
@@ -487,6 +608,7 @@ interface PluginHooks {
 {
   "outputPath": ".opencode/prompts",
   "filePrefix": "opencode-prompt-",
+  "saveAllLogs": false,
   "billing": {
     "enabled": true,
     "models": [
@@ -655,6 +777,7 @@ try {
 interface PromptRecorderConfig {
   outputPath: string;      // 相对于项目根目录的路径
   filePrefix: string;      // 文件名前缀
+  saveAllLogs: boolean;     // 启用完整对话日志记录
   billing: BillingConfig;  // 计费功能配置
 }
 ```
@@ -665,6 +788,7 @@ interface PromptRecorderConfig {
 |-----|--------|------|
 | `outputPath` | `.opencode/prompts` | 相对于项目根的输出目录 |
 | `filePrefix` | `opencode-prompt-` | 文件名前缀 |
+| `saveAllLogs` | `false` | 启用完整对话捕获 |
 | `billing.enabled` | `false` | 启用成本计算 |
 | `billing.models` | `[]` | 模型定价配置 |
 

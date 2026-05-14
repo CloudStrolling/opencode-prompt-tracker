@@ -1,7 +1,7 @@
 {
   "name": "opencode-prompt-tracker",
   "version": "1.0.0",
-  "description": "OpenCode plugin to log prompts, models, agents, duration, and token usage to daily Markdown files",
+  "description": "OpenCode plugin to log prompts, models, agents, duration, token usage and cost to daily Markdown files",
   "main": "dist/release/opencode-prompt-tracker.js",
   "type": "module",
   "scripts": {
@@ -14,16 +14,13 @@
   "keywords": [
     "opencode",
     "opencode-plugin",
-    "plugin",
+    "prompts",
     "logging",
     "tokens",
     "prompts",
-    "agent"
+    "tracker"
   ],
-  "author": {
-    "name": "Your Name",
-    "email": "your.email@example.com"
-  },
+  "author": "Your Name <your.email@example.com>",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -48,5 +45,9 @@
     "esbuild": "^0.28.0",
     "prettier": "^3.8.3",
     "typescript": "^5.0.0"
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
   }
 }
