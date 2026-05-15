@@ -263,4 +263,4 @@ npm publish --access public
 
 Licensed under the Apache License 2.0. See [LICENSE](./LICENSE) file for details.
 
-Copyright 2026 CloudStrolling jenemy
+Copyright 2026 jenemy8023<jenemy8023@163.com>
