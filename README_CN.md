@@ -262,4 +262,4 @@ npm publish --access public
 
 基于 Apache License 2.0 许可证发布。详见 [LICENSE](./LICENSE) 文件。
 
-版权所有 2026 jenemy8023<jenemy8023@163.com>
+版权所有 2026 jenemy8023  <jenemy8023@163.com>
